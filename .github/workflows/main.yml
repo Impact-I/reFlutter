@@ -1,0 +1,124 @@
+name: Build
+
+on:
+  pull_request:
+    branches:
+      - '*'
+
+jobs:
+  build-android:
+    runs-on: ubuntu-18.04
+    steps:
+      - name: Check out repository od
+        uses: actions/checkout@v2
+      - name: Set variables
+        run: |
+         HASH=$(cat SNAPSHOT_HASH)
+         echo "SNAPSHOT_HASH=$HASH" >> $GITHUB_ENV
+      - name: Install tools
+        run: |
+          sudo apt-get update
+          sudo apt-get remove git git-man
+          sudo add-apt-repository --remove --yes ppa:git-core/ppa
+          sudo apt-get update
+          sudo apt-get install --yes git git-svn
+          sudo apt-get install -y git wget curl software-properties-common unzip python-pip python lsb-release sudo apt-transport-https
+          DEBIAN_FRONTEND="noninteractive" sudo apt-get -y install tzdata
+          pip install wheel
+          pip install .
+          git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git
+          git clone https://github.com/flutter/engine.git
+      - name: gclient sync
+        run: |
+          ROOT_DIR=`pwd`
+          export PATH=$PATH:$ROOT_DIR/depot_tools
+          cd engine
+          git config --global user.email "reflutter@example.com" && git config --global user.name "reflutter"
+          git fetch origin $(reflutter ${{env.SNAPSHOT_HASH}} -l)
+          git reset --hard FETCH_HEAD
+          reflutter ${{env.SNAPSHOT_HASH}} -l
+          echo 'reflutter' > REFLUTTER
+          git add . && git commit -am "reflutter"
+          cd $ROOT_DIR
+          mkdir --parents customEngine
+          cd customEngine
+          echo 'solutions = [{"managed": False,"name": "src/flutter","url": "'$ROOT_DIR/engine'","custom_deps": {},"deps_file": "DEPS","safesync_url": "",},]' > .gclient
+          gclient sync
+          reflutter ${{env.SNAPSHOT_HASH}} -l
+      - name: Install BuildDeps
+        run: sudo customEngine/src/build/install-build-deps-android.sh --no-prompt
+      - name: ninja build libflutter
+        run: export PATH=$PATH:`pwd`/depot_tools && customEngine/src/flutter/tools/gn --android --android-cpu=arm64 --runtime-mode=release && ninja -C customEngine/src/out/android_release_arm64
+      - name: ninja build libflutter32
+        run: export PATH=$PATH:`pwd`/depot_tools && customEngine/src/flutter/tools/gn --android --android-cpu=arm --runtime-mode=release && ninja -C customEngine/src/out/android_release
+      - name: Move to release
+        run: |
+         cp customEngine/src/out/android_release_arm64/lib.stripped/libflutter.so libflutter_arm64.so 2>/dev/null || :
+         cp customEngine/src/out/android_release/lib.stripped/libflutter.so libflutter_arm.so 2>/dev/null || :
+         cp customEngine/src/out/android_release_x64/lib.stripped/libflutter.so libflutter_x64.so 2>/dev/null || :
+         cp customEngine/src/out/android_jit_release_x86/lib.stripped/libflutter.so libflutter_x86.so 2>/dev/null || :
+      - name: Release
+        uses: softprops/action-gh-release@v1
+        with:
+          target_commitish: v2-${{env.SNAPSHOT_HASH}}
+          tag_name: android-v2-${{env.SNAPSHOT_HASH}}
+          files: |
+            ./*.so
+
+  build-ios:
+    runs-on: macos-10.15
+    steps:
+      - name: Check out repository od
+        uses: actions/checkout@v2
+      - name: Setup Xcode version
+        uses: maxim-lobanov/setup-xcode@v1.3.0
+        with:
+         xcode-version: 12.4
+      - name: Set variables
+        run: |
+         HASH=$(cat SNAPSHOT_HASH)
+         echo "SNAPSHOT_HASH=$HASH" >> $GITHUB_ENV
+      - name: Install tools
+        run: |
+          brew update
+          brew install libzip openssl libplist autoconf automake libtool autoconf-archive pkg-config
+          export PKG_CONFIG_PATH=$PKG_CONFIG_PATH:/usr/local/opt/openssl@1.1/lib/pkgconfig
+          git clone https://github.com/libimobiledevice/libplist
+          cd libplist && ./autogen.sh --without-cython && sudo make install && cd ..
+          cd libusbmuxd && ./autogen.sh && sudo make install && cd ..
+          xcrun --sdk macosx --show-sdk-path
+          brew install ideviceinstaller
+          brew install ios-deploy
+          pip3 install wheel
+          pip3 install .
+          git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git
+          git clone https://github.com/flutter/engine.git
+      - name: gclient sync
+        run: |
+          ROOT_DIR=`pwd`
+          export PATH=$PATH:$ROOT_DIR/depot_tools
+          cd engine
+          git config --global user.email "reflutter@example.com" && git config --global user.name "reflutter"
+          git fetch origin $(reflutter ${{env.SNAPSHOT_HASH}} -l)
+          git reset --hard FETCH_HEAD
+          reflutter ${{env.SNAPSHOT_HASH}} -l
+          echo 'reflutter' > REFLUTTER
+          git add . && git commit -am "reflutter"
+          cd $ROOT_DIR
+          mkdir customEngine
+          cd customEngine
+          echo 'solutions = [{"managed": False,"name": "src/flutter","url": "'$ROOT_DIR/engine'","custom_deps": {},"deps_file": "DEPS","safesync_url": "",},]' > .gclient
+          gclient sync
+          reflutter ${{env.SNAPSHOT_HASH}} -l
+      - name: ninja build Flutter.framework
+        run: export PATH=$PATH:`pwd`/depot_tools && sudo xcode-select -s /Applications/Xcode_12.4.app && customEngine/src/flutter/tools/gn --ios --ios-cpu=arm64 --runtime-mode=release && ninja -C customEngine/src/out/ios_release
+      - name: Move to release
+        run: |
+         cp customEngine/src/out/ios_release/Flutter.framework/Flutter Flutter
+      - name: Release
+        uses: softprops/action-gh-release@v1
+        with:
+          target_commitish: v2-${{env.SNAPSHOT_HASH}}
+          tag_name: ios-v2-${{env.SNAPSHOT_HASH}}
+          files: |
+            ./Flutter
