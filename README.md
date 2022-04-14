@@ -10,6 +10,7 @@ This framework helps with Flutter apps reverse engineering using the patched ver
 Key features:
 - `socket.cc` is patched for traffic monitoring and interception;
 - `dart.cc` is modified to print classes, functions and some fields;
+- display absolute code offset for functions
 - contains minor changes for successfull compilation;
 - if you would like to implement your own patches, there is manual Flutter code change is supported using specially crafted `Dockerfile`
 ### Supported engines
