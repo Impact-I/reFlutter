@@ -110,7 +110,9 @@ PlainNotificationToken* _instance = sentinel;
 </details>
 
 ### Usage on iOS
-Use the IPA file created after the execution of `reflutter main.ipa` command. To see which code is loaded through DartVM, you need to run the application on the device. reFlutter prints its output in console logs in XCode with the `reflutter` tag.
+Use the IPA file created after the execution of `reflutter main.ipa` command. To see which code is loaded through DartVM, you need to run the application on the device. reFlutter will print the dump file path to the Xcode console logs with the reFlutter tag
+`Current working dir: /private/var/mobile/Containers/Data/Application/<UUID>/dump.dart`
+Next, you will need to pull the file from the device
 <p align="center"><img src="https://user-images.githubusercontent.com/87244850/163422141-40d8509f-0da4-4d38-88a9-6a5575cefd49.png" width="100%"/></p>
 
 ### To Do
