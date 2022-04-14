@@ -19,7 +19,7 @@ Key features:
 ### Install
 ```
 # Linux, Windows, MacOS
-pip3 install reflutter
+pip3 install reflutter==0.6.6
 ```
 ### Usage
 ```console
