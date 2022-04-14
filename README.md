@@ -113,7 +113,7 @@ PlainNotificationToken* _instance = sentinel;
 Use the IPA file created after the execution of `reflutter main.ipa` command. To see which code is loaded through DartVM, you need to run the application on the device. reFlutter will print the dump file path to the Xcode console logs with the reFlutter tag
 `Current working dir: /private/var/mobile/Containers/Data/Application/<UUID>/dump.dart`
 Next, you will need to pull the file from the device
-<p align="center"><img src="https://user-images.githubusercontent.com/87244850/163422141-40d8509f-0da4-4d38-88a9-6a5575cefd49.png" width="100%"/></p>
+<p align="center"><img src="https://user-images.githubusercontent.com/87244850/163424938-2a43407b-8273-4feb-8e8e-98227a112ade.png" width="100%"/></p>
 
 ### To Do
 - [x] Display absolute code offset for functions;
