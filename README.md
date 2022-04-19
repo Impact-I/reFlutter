@@ -116,6 +116,11 @@ Use the IPA file created after the execution of `reflutter main.ipa` command. To
 Next, you will need to pull the file from the device
 <p align="center"><img src="https://user-images.githubusercontent.com/87244850/135860648-a13ba3fd-93d2-4eab-bd38-9aa775c3178f.png" width="100%"/></p>
 
+### Frida
+The resulting offset from the dump can be used in the frida [script](https://github.com/Impact-I/reFlutter/blob/main/frida.js)
+```
+frida -U -f <package> -l frida.js --no-pause
+```
 ### To Do
 - [x] Display absolute code offset for functions;
 - [ ] Extract more strings and fields;
