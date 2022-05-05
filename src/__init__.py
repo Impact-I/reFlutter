@@ -208,7 +208,7 @@ def patchSource(hashS,ver):
         replaceFileText('src/third_party/dart/runtime/vm/app_snapshot.cc','monomorphic_entry_point + unchecked_offset','previous_text_offset_')
     if ver>38:
         replaceFileText('src/third_party/dart/runtime/vm/app_snapshot.cc','monomorphic_entry_point + unchecked_offset','instructions_table_.rodata()->entries()[instructions_table_.rodata()->first_entry_with_code + instructions_index_-1].pc_offset')
-    replaceFileText('src/third_party/dart/runtime/vm/dart.cc','FLAG_print_class_table)','true)')
+    replaceFileText('src/third_party/dart/runtime/vm/dart.cc','FLAG_print_class_table)','strstr("dartDumpFals", "DumpTrue") != NULL)')
     replaceFileText('src/third_party/dart/runtime/vm/class_table.cc','#include "vm/visitor.h"','#include "vm/visitor.h"\n#include <sys/stat.h>')
     if ver>27:
         replaceFileText('src/third_party/dart/runtime/vm/class_table.cc','::Print() {','::Print()  { OS::PrintErr("reFlutter");\n char pushArr[160000]="";\n')
