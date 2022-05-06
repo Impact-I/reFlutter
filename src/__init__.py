@@ -18,6 +18,10 @@ else:
     from urllib import urlretrieve
     from urllib import urlopen
 
+yes = {'yes','y', 'ye', ''}
+no = {'no','n'}
+patchDump = None    
+
 IPBurp = '192.168.1.12'
 libAppArm64 = '',''
 libAppArm = '',''
@@ -31,15 +35,40 @@ def patchLibrary():
  if len(libios[1]) != 0:
     buffer = open('Flutter', 'rb').read().replace(b'192.168.133.104', IPBurp.encode('ascii'))
     open('Flutter', 'wb').write(buffer)
+    patchLibraryDump('Flutter')
  if len(libAppArm64[1]) != 0:
     buffer = open('libflutter_arm64.so', 'rb').read().replace(b'192.168.133.104', IPBurp.encode('ascii'))
     open('libflutter_arm64.so', 'wb').write(buffer)
+    patchLibraryDump('libflutter_arm64.so')
  if len(libAppArm[1]) != 0:
     buffer = open('libflutter_arm.so', 'rb').read().replace(b'192.168.133.104', IPBurp.encode('ascii'))
     open('libflutter_arm.so', 'wb').write(buffer)
+    patchLibraryDump('libflutter_arm.so')
  if len(libAppX64[1]) != 0:
     buffer = open('libflutter_x64.so', 'rb').read().replace(b'192.168.133.104', IPBurp.encode('ascii'))
     open('libflutter_x64.so', 'wb').write(buffer)
+    patchLibraryDump('libflutter_x64.so')
+
+def patchLibraryDump(library):
+ global patchDump
+ if patchDump is not None:
+   if patchDump:
+    buffer = open(library, 'rb').read().replace(b'dartDumpFals', 'dartDumpTrue'.encode('ascii'))
+    open(library, 'wb').write(buffer)
+   else:
+    return
+   return
+ try:
+     choice = raw_input(" I need to capture traffic only (Choose \"No\" if you also need a dump.dart) [Y/n]? ").lower()
+ except:
+     choice = input(' I need to capture traffic only (Choose "No" if you also need a dump.dart) [Y/n]? ').lower()
+ if choice in yes:
+   patchDump = False
+ elif choice in no:
+   patchDump = True
+ else:
+   print(" Please respond with 'yes' or 'no'\n")
+ patchLibraryDump(library)
 
 def inputIPBurp():
     global IPBurp
@@ -138,6 +167,7 @@ def replaceLibFlutter():
     if len(sys.argv) < 3:
         checkHash()
         inputIPBurp()
+        print("\n Wait...\n")
         networkLib()
     if os.path.exists("libflutter_arm64.so") or os.path.exists("libflutter_arm.so") or os.path.exists("libflutter_x64.so") or os.path.exists("libflutter_x86.so") or os.path.exists("Flutter"):
      try:
