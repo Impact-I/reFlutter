@@ -230,15 +230,15 @@ def patchSource(hashS,ver):
     replaceFileText("DEPS","'src/third_party/dart/third_party/pkg/tflite_native':\n   Var('dart_git') + '/tflite_native.git' + '@' + Var('dart_tflite_native_rev'),", "")
     replaceFileText('src/third_party/dart/DEPS','Var("dart_root") + "/third_party/pkg/tflite_native":\n      Var("dart_git") + "tflite_native.git" + "@" + Var("tflite_native_rev"),', '')
     replaceFileText('DEPS','Var("dart_root") + "/third_party/pkg/tflite_native":\n      Var("dart_git") + "tflite_native.git" + "@" + Var("tflite_native_rev"),', '')
-    if ver>=24:
-        replaceFileText('src/third_party/dart/runtime/vm/clustered_snapshot.cc','monomorphic_entry_point + unchecked_offset','strstr(strdup("dartDumpFals"), "DumpTrue") != NULL ? previous_text_offset_ : monomorphic_entry_point + unchecked_offset')
-    if ver<24:
-        replaceFileText('src/third_party/dart/runtime/vm/clustered_snapshot.cc','monomorphic_entry_point + unchecked_offset','strstr(strdup("dartDumpFals"), "DumpTrue") != NULL ? bare_offset : monomorphic_entry_point + unchecked_offset')
-    if ver<39:
-        replaceFileText('src/third_party/dart/runtime/vm/app_snapshot.cc','monomorphic_entry_point + unchecked_offset','strstr(strdup("dartDumpFals"), "DumpTrue") != NULL ? previous_text_offset_ : monomorphic_entry_point + unchecked_offset')
-    if ver>38:
-        replaceFileText('src/third_party/dart/runtime/vm/app_snapshot.cc','monomorphic_entry_point + unchecked_offset','strstr(strdup("dartDumpFals"), "DumpTrue") != NULL ? instructions_table_.rodata()->entries()[instructions_table_.rodata()->first_entry_with_code + instructions_index_-1].pc_offset : monomorphic_entry_point + unchecked_offset')
-    replaceFileText('src/third_party/dart/runtime/vm/dart.cc','FLAG_print_class_table)','true)')
+    #if ver>=24:
+        #replaceFileText('src/third_party/dart/runtime/vm/clustered_snapshot.cc','monomorphic_entry_point + unchecked_offset','strstr(strdup("dartDumpFals"), "DumpTrue") != NULL ? previous_text_offset_ : monomorphic_entry_point + unchecked_offset')
+    #if ver<24:
+        #replaceFileText('src/third_party/dart/runtime/vm/clustered_snapshot.cc','monomorphic_entry_point + unchecked_offset','strstr(strdup("dartDumpFals"), "DumpTrue") != NULL ? bare_offset : monomorphic_entry_point + unchecked_offset')
+    #if ver<39:
+        #replaceFileText('src/third_party/dart/runtime/vm/app_snapshot.cc','monomorphic_entry_point + unchecked_offset','strstr(strdup("dartDumpFals"), "DumpTrue") != NULL ? previous_text_offset_ : monomorphic_entry_point + unchecked_offset')
+    #if ver>38:
+        #replaceFileText('src/third_party/dart/runtime/vm/app_snapshot.cc','monomorphic_entry_point + unchecked_offset','strstr(strdup("dartDumpFals"), "DumpTrue") != NULL ? instructions_table_.rodata()->entries()[instructions_table_.rodata()->first_entry_with_code + instructions_index_-1].pc_offset : monomorphic_entry_point + unchecked_offset')
+    #replaceFileText('src/third_party/dart/runtime/vm/dart.cc','FLAG_print_class_table)','true)')
     replaceFileText('src/third_party/dart/runtime/vm/class_table.cc','#include "vm/visitor.h"','#include "vm/visitor.h"\n#include <sys/stat.h>')
     if ver>27:
         replaceFileText('src/third_party/dart/runtime/vm/class_table.cc','::Print() {','::Print()  { OS::PrintErr("reFlutter");\n if (strstr(strdup("dartDumpFals"), "DumpTrue") != NULL) { char pushArr[160000]="";\n')
