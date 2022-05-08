@@ -143,6 +143,7 @@ def replaceLibFlutter():
     if len(sys.argv) < 3:
         checkHash()
         inputIPBurp()
+        print("\n Wait...\n")
         networkLib()
     if os.path.exists("libflutter_arm64.so") or os.path.exists("libflutter_arm.so") or os.path.exists("libflutter_x64.so") or os.path.exists("libflutter_x86.so") or os.path.exists("Flutter"):
      try:
