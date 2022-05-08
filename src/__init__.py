@@ -46,13 +46,14 @@ def patchLibrary():
 def patchCase():
  global patchDump
  try:
-     choice = raw_input(" Choose an option: \n 1. Traffic monitoring and interception \n 2. Display absolute code offset for functions\n [1/2]? ").lower()
+     choice = raw_input("\n Choose an option: \n\n 1. Traffic monitoring and interception \n 2. Display absolute code offset for functions\n\n [1/2]? ").lower()
  except:
-     choice = input(' Choose an option: \n 1. Traffic monitoring and interception \n 2. Display absolute code offset for functions\n [1/2]? ').lower()
+     choice = input('\n Choose an option: \n\n 1. Traffic monitoring and interception \n 2. Display absolute code offset for functions\n\n [1/2]? ').lower()
  if choice == "1":
    patchDump = False
    return
  elif choice == "2":
+   print("\n This mode is only for dump and offset output, slow application operation is possible (network patch is still left)")
    return
  else:
    print(" Please respond with '1' or '2'\n")
@@ -156,8 +157,8 @@ def zipdir(path, ziph):
 
 def replaceLibFlutter():
     if len(sys.argv) < 3:
-        checkHash()
         patchCase()
+        checkHash()
         inputIPBurp()
         print("\n Wait...\n")
         networkLib()
