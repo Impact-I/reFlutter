@@ -43,6 +43,21 @@ def patchLibrary():
     buffer = open('libflutter_x64.so', 'rb').read().replace(b'192.168.133.104', IPBurp.encode('ascii'))
     open('libflutter_x64.so', 'wb').write(buffer)
 
+def patchCase():
+ global patchDump
+ try:
+     choice = raw_input(" Choose an option: \n 1. Traffic monitoring and interception \n 2. Display absolute code offset for functions\n [1/2]? ").lower()
+ except:
+     choice = input(' Choose an option: \n 1. Traffic monitoring and interception \n 2. Display absolute code offset for functions\n [1/2]? ').lower()
+ if choice == "1":
+   patchDump = False
+   return
+ elif choice == "2":
+   return
+ else:
+   print(" Please respond with '1' or '2'\n")
+ patchCase()
+
 def inputIPBurp():
     global IPBurp
     try:
@@ -142,6 +157,7 @@ def zipdir(path, ziph):
 def replaceLibFlutter():
     if len(sys.argv) < 3:
         checkHash()
+        patchCase()
         inputIPBurp()
         print("\n Wait...\n")
         networkLib()
