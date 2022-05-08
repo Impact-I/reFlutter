@@ -59,33 +59,36 @@ def inputIPBurp():
 
 def networkLib():
     global libAppArm64,libAppArm,libAppX64,libAppX86,libios
+    verUrl = "v2-"
+    if patchDump:
+       verUrl = "v3-"
     if len(libios[1]) != 0:
        try:
-        urlretrieve("https://github.com/Impact-I/reFlutter/releases/download/ios-v2-"+libios[1]+"/Flutter", "Flutter")
+        urlretrieve("https://github.com/Impact-I/reFlutter/releases/download/ios-"+verUrl+libios[1]+"/Flutter", "Flutter")
        except:
         libios='',''
         notexcept("Flutter")
     if len(libAppArm64[1]) != 0:
        try: 
-        urlretrieve("https://github.com/Impact-I/reFlutter/releases/download/android-v2-"+libAppArm64[1]+"/libflutter_arm64.so", "libflutter_arm64.so")
+        urlretrieve("https://github.com/Impact-I/reFlutter/releases/download/android-"+verUrl+libAppArm64[1]+"/libflutter_arm64.so", "libflutter_arm64.so")
        except:
         libAppArm64='',''
         notexcept("libflutter_arm64.so")
     if len(libAppArm[1]) != 0:
        try:
-        urlretrieve("https://github.com/Impact-I/reFlutter/releases/download/android-v2-"+libAppArm[1]+"/libflutter_arm.so", "libflutter_arm.so")
+        urlretrieve("https://github.com/Impact-I/reFlutter/releases/download/android-"+verUrl+libAppArm[1]+"/libflutter_arm.so", "libflutter_arm.so")
        except:
         libAppArm='',''
         notexcept("libflutter_arm.so")
     if len(libAppX64[1]) != 0:
        try:
-        urlretrieve("https://github.com/Impact-I/reFlutter/releases/download/android-v2-"+libAppX64[1]+"/libflutter_x64.so", "libflutter_x64.so")
+        urlretrieve("https://github.com/Impact-I/reFlutter/releases/download/android-"+verUrl+libAppX64[1]+"/libflutter_x64.so", "libflutter_x64.so")
        except:
         libAppX64='',''
         notexcept("libflutter_x64.so")
     if len(libAppX86[1]) != 0:
        try:
-        urlretrieve("https://github.com/Impact-I/reFlutter/releases/download/android-v2-"+libAppX86[1]+"/libflutter_x86.so", "libflutter_x86.so")
+        urlretrieve("https://github.com/Impact-I/reFlutter/releases/download/android-"+verUrl+libAppX86[1]+"/libflutter_x86.so", "libflutter_x86.so")
        except:
         libAppX86='',''
         notexcept("libflutter_x86.so")
