@@ -58,7 +58,7 @@ def inputIPBurp():
     convertIPFix()
 
 def networkLib():
-    global libAppArm64,libAppArm,libAppX64,libAppX86,libios
+    global libAppArm64,libAppArm,libAppX64,libAppX86,libios,patchDump
     verUrl = "v2-"
     if patchDump:
        verUrl = "v3-"
@@ -193,6 +193,7 @@ def replaceFileText(fname,textOrig,textReplace):
        pass
 
 def patchSource(hashS,ver):
+    global patchDump
     try:
         os.makedirs(os.path.join(os.environ["HOME"],"Documents"))
     except:
