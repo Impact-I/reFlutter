@@ -18,7 +18,7 @@ else:
     from urllib import urlretrieve
     from urllib import urlopen
 
-patchDump = True    
+patchDump = False    
 
 IPBurp = '192.168.1.12'
 libAppArm64 = '',''
