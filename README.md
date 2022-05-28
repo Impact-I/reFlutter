@@ -20,7 +20,7 @@ Key features:
 ### Install
 ```
 # Linux, Windows, MacOS
-pip3 install reflutter==0.7.1
+pip3 install reflutter==0.7.2
 ```
 ### Usage
 ```console
