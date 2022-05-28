@@ -131,11 +131,28 @@ def convertIPFix():
                 intoct[intoct.index(i)]=intoct[intoct.index(i)].zfill(3)
         elif len(i)==3 and int(i)>7 and int(i)>99 and len('.'.join(intoct))>15: #64-99
             intoct[intoct.index(i)]=str(oct(int(i))).replace('o','')
+    for i in intoct:
+        nn = intoct.index(i)
+        if i.startswith('0'):
+            if len(i)>2 and int(i)>7 and len('.'.join(intoct))>15: #8-63
+                intoct[nn]=str(int(i, 8)).replace('o','')
+        elif len(i)!=3 and int(i)>7 and int(i)>63 and len('.'.join(intoct))<15: #0-7
+                intoct[nn]=str(oct(int(i))).replace('o','')
+    for i in intoct:
+        if len(i)<3 and int(i)<8 and len('.'.join(intoct))<15:
+            intoct[intoct.index(i)]=str(int(i)).zfill(2)
     for f in finallistIP:
         for i in intoct:
             if i.startswith('0'):
                 if f==str(int(i, 8)):
-                    finallistIP[finallistIP.index(f)]=i.replace('o','')
+                    mi = finallistIP.index(f)
+                    finallistIP[mi]=i.replace('o','')
+                    if len('.'.join(finallistIP))>15:
+                      finallistIP[mi]=str(int(i, 8)).replace('o','')
+    if len('.'.join(finallistIP))<15:
+        for f in finallistIP:
+                if len(f)<3 and int(f)<8:
+                   finallistIP[finallistIP.index(f)]=str(int(f)).zfill(2)
     IPBurp = '.'.join(finallistIP)
 
 def notexcept(filename):
