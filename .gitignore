@@ -1,0 +1,10 @@
+*.egg-info
+*.ipa
+*.apk
+Flutter
+*.so
+*.zp
+release/
+libappTmp/
+dist/
+build/
