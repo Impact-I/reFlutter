@@ -1,10 +1,14 @@
 [![Twitter](https://img.shields.io/twitter/follow/lmpact_l.svg?logo=twitter)](https://twitter.com/lmpact_l)
 
-[![stars](https://img.shields.io/github/stars/Impact-I/reFlutter)](https://github.com/Impact-I/reFlutter/stargazers) [![workflow](https://img.shields.io/github/workflow/status/Impact-I/reFlutter/Build)](https://github.com/Impact-I/reFlutter/actions)
+[![stars](https://img.shields.io/github/stars/Impact-I/reFlutter)](https://github.com/Impact-I/reFlutter/stargazers)
 
 <p align="center"><img src="https://user-images.githubusercontent.com/87244850/135659542-22bb8496-bf26-4e25-b7c1-ffd8fc0cea10.png" width="75%"/></p>
 
 #
+
+**At the moment, support for the project, unfortunately suspended, you can use the docker file or use the yml config to compile your own Flutter Engine.
+Read more on the blog:** https://swarm.ptsecurity.com/fork-bomb-for-flutter/
+
 This framework helps with Flutter apps reverse engineering using the patched version of the Flutter library which is already compiled and ready for app repacking. This library has snapshot deserialization process modified to allow you perform dynamic analysis in a convenient way.
 
 Key features:
