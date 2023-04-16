@@ -18,7 +18,7 @@ else:
     from urllib import urlretrieve
     from urllib import urlopen
 
-patchDump = True    
+patchDump = False
 
 IPBurp = '192.168.1.12'
 libAppArm64 = '',''
@@ -54,6 +54,7 @@ def patchCase():
    return
  elif choice == "2":
    print("\n This mode is only for dump and offset output, slow application operation is possible (network patch is still left)")
+   patchDump = True
    return
  else:
    print(" Please respond with '1' or '2'\n")
@@ -355,6 +356,11 @@ def extractZip(zipname):
         replaceLibFlutter()
 
 def main():
+ global libappHash, patchDump
+
+ # allow engine build for dart dump
+ if len(sys.argv) > 3:
+    patchDump = True
  try:
   if sys.argv[1].lower().endswith('.apk') or sys.argv[1].lower().endswith('.ipa'):
     extractZip(sys.argv[1])
