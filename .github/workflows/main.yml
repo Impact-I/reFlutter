@@ -22,10 +22,10 @@ jobs:
           sudo add-apt-repository --remove --yes ppa:git-core/ppa
           sudo apt-get update
           sudo apt-get install --yes git git-svn
-          sudo apt-get install -y git wget curl software-properties-common unzip python-pip python lsb-release sudo apt-transport-https
+          sudo apt-get install -y git wget curl software-properties-common unzip python3-pip python3 lsb-release sudo apt-transport-https
           DEBIAN_FRONTEND="noninteractive" sudo apt-get -y install tzdata
-          pip install wheel
-          pip install .
+          pip3 install wheel
+          pip3 install .
           git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git
           git clone https://github.com/flutter/engine.git
       - name: gclient sync
@@ -139,10 +139,10 @@ jobs:
           sudo add-apt-repository --remove --yes ppa:git-core/ppa
           sudo apt-get update
           sudo apt-get install --yes git git-svn
-          sudo apt-get install -y git wget curl software-properties-common unzip python-pip python lsb-release sudo apt-transport-https
+          sudo apt-get install -y git wget curl software-properties-common unzip python3-pip python3 lsb-release sudo apt-transport-https
           DEBIAN_FRONTEND="noninteractive" sudo apt-get -y install tzdata
-          pip install wheel
-          pip install .
+          pip3 install wheel
+          pip3 install .
           git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git
           git clone https://github.com/flutter/engine.git
       - name: gclient sync
