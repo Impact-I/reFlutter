@@ -148,6 +148,3 @@ jobs:
           tag_name: ios-v3-${{env.SNAPSHOT_HASH}}
           files: |
             ./*.so
-            ./*.so
-          files: |
-            ./Flutter
