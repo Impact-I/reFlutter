@@ -65,15 +65,13 @@ jobs:
       - name: iOS-release
         uses: softprops/action-gh-release@v1
         with:
-          # target_commitish: v2-${{env.SNAPSHOT_HASH}}
           tag_name: ios-v2-${{env.SNAPSHOT_HASH}}
           files: |
             ./Flutter
       - name: Android-Release
         uses: softprops/action-gh-release@v1
         with:
-          # target_commitish: v2-${{env.SNAPSHOT_HASH}}
-          tag_name: ios-v2-${{env.SNAPSHOT_HASH}}
+          tag_name: android-v2-${{env.SNAPSHOT_HASH}}
           files: |
             ./*.so
 
@@ -137,14 +135,12 @@ jobs:
       - name: iOS-Release
         uses: softprops/action-gh-release@v1
         with:
-          # target_commitish: v3-${{env.SNAPSHOT_HASH}}
           tag_name: ios-v3-${{env.SNAPSHOT_HASH}}
           files: |
             ./Flutter
       - name: Android-Release
         uses: softprops/action-gh-release@v1
         with:
-          # target_commitish: v3-${{env.SNAPSHOT_HASH}}
-          tag_name: ios-v3-${{env.SNAPSHOT_HASH}}
+          tag_name: android-v3-${{env.SNAPSHOT_HASH}}
           files: |
             ./*.so
