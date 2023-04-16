@@ -7,7 +7,7 @@ on:
 
 jobs:
   build-android-v2:
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-latest
     steps:
       - name: Check out repository od
         uses: actions/checkout@v2
@@ -124,7 +124,7 @@ jobs:
             ./Flutter
 
   build-android-v3:
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-latest
     steps:
       - name: Check out repository od
         uses: actions/checkout@v2
