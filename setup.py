@@ -27,6 +27,7 @@ setuptools.setup(
     version='0.7.3',
     description=SHORT_DESCRIPTION,
     long_description=LONG_DESCRIPTION,
+    long_description_content_type="text/markdown",
     author='impact',
     author_email='routeros7.1@gmail.com',
     url='https://github.com/Impact-I/reFlutter',
