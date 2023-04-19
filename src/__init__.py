@@ -81,9 +81,9 @@ def inputIPBurp():
 
 def networkLib():
     global libAppArm64, libAppArm, libAppX64, libAppX86, libios, patchDump
-    verUrl = "v1-"
+    verUrl = "v2-"
     if patchDump:
-        verUrl = "v2-"
+        verUrl = "v3-"
     if len(libios[1]) != 0:
         try:
             urlretrieve("https://github.com/Impact-I/reFlutter/releases/download/ios-" + verUrl + libios[
