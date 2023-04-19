@@ -26,6 +26,7 @@ libAppX86 = '', ''
 libios = '', ''
 libappHash = ''
 ZIPSTORED = False
+engineHashFile = 'enginehash.tmp.csv'
 
 
 def patchLibrary():
@@ -451,10 +452,14 @@ def main():
         else:
             libappHash = sys.argv[1]
 
-        if not os.path.exists("enginehash.csv"):
-            urlretrieve("https://raw.githubusercontent.com/Impact-I/reFlutter/main/enginehash.csv", "enginehash.csv")
+        # remove existing enginehash file
+        if os.path.isfile(engineHashFile):
+            os.remove(engineHashFile)
 
-        with open("enginehash.csv") as f_obj:
+        # fetch the latest enginehash file
+        urlretrieve("https://raw.githubusercontent.com/Impact-I/reFlutter/main/enginehash.csv", engineHashFile)
+
+        with open(engineHashFile) as f_obj:
             replaceFileText('src/src/flutter/BUILD.gn',
                             '  if (is_android) {\n    public_deps +=\n        [ "//flutter/shell/platform/android:flutter_shell_native_unittests" ]\n  }',
                             '')
