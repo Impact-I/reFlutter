@@ -2,8 +2,6 @@
 
 <p align="center"><img src="https://user-images.githubusercontent.com/87244850/135659542-22bb8496-bf26-4e25-b7c1-ffd8fc0cea10.png" width="75%"/></p>
 
-#
-
 **Read more on the blog:** https://swarm.ptsecurity.com/fork-bomb-for-flutter/
 
 This framework helps with Flutter apps reverse engineering using the patched version of the Flutter library which is already compiled and ready for app repacking. This library has snapshot deserialization process modified to allow you perform dynamic analysis in a convenient way.
@@ -168,8 +166,11 @@ The hash of the snapshot is extracted from `storage.googleapis.com/flutter_infra
 If you would like to implement your own patches, manual Flutter code change is supported using specially crafted [Docker](https://hub.docker.com/r/ptswarm/reflutter)
 
 ```bash
+git clone https://github.com/Impact-I/reFlutter && cd reFlutter
 docker build -t reflutter -f Dockerfile .
 ```
+
+Build command:
 
 ```bash
 docker run -it -v "$(pwd):/t" -e HASH_PATCH=<Snapshot_Hash> -e COMMIT=<Engine_commit> reflutter
@@ -193,7 +194,3 @@ FLAGS:
 -e WAIT=300 <the amount of time in seconds you need to edit source code>
 -e HASH_PATCH=[Snapshot_Hash] <here you need to specify snapshot hash which matches the engine_commit line of enginehash.csv table best. It is used for proper patch search in reFlutter and for successfull compilation>
 -e COMMIT=[Engine_commit] <here you specify commit for your engine version, take it from enginehash.csv table or from flutter/engine repo>
-
-```
-
-```
