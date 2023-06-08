@@ -1,4 +1,4 @@
-FROM kalilinux/kali-rolling:latest
+FROM ubuntu:18.04
 
 ARG HASH_PATCH
 ARG COMMIT
