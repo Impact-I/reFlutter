@@ -5,7 +5,7 @@ ROOT_DIR=$(pwd)
 
 # Required packages for macOS
 brew update
-brew install libzip openssl libplist autoconf automake libtool autoconf-archive pkg-config
+brew install libzip openssl libplist autoconf automake libtool autoconf-archive pkg-config ninja
 export PKG_CONFIG_PATH=$PKG_CONFIG_PATH:/usr/local/opt/openssl@1.1/lib/pkgconfig
 git clone https://github.com/libimobiledevice/libplist
 cd libplist && ./autogen.sh --without-cython && sudo make install && cd ..
@@ -53,17 +53,14 @@ reflutter "$SNAPSHOT_HASH" -l
 cd "$ROOT_DIR"
 sudo customEngine/src/build/install-build-deps-android.sh --no-prompt
 cd "$ROOT_DIR"
-export PATH=$PATH:$(pwd)/depot_tools && customEngine/src/flutter/tools/gn --android --android-cpu=arm64 --runtime-mode=release && ninja -C customEngine/src/out/android_release_arm64
+export PATH=$PATH:$(pwd)/depot_tools && customEngine/src/flutter/tools/gn --no-goma --android --android-cpu=arm64 --runtime-mode=release && ninja -C customEngine/src/out/android_release_arm64
 cd "$ROOT_DIR"
-export PATH=$PATH:$(pwd)/depot_tools && customEngine/src/flutter/tools/gn --android --android-cpu=arm --runtime-mode=release && ninja -C customEngine/src/out/android_release
+export PATH=$PATH:$(pwd)/depot_tools && customEngine/src/flutter/tools/gn --no-goma --android --android-cpu=arm --runtime-mode=release && ninja -C customEngine/src/out/android_release
 cd "$ROOT_DIR"
-export PATH=$PATH:$(pwd)/depot_tools && customEngine/src/flutter/tools/gn --android --android-cpu=x64 --runtime-mode=release && ninja -C customEngine/src/out/android_release_x64
-cd "$ROOT_DIR"
-export PATH=$PATH:$(pwd)/depot_tools && customEngine/src/flutter/tools/gn --android --android-cpu=x86 --runtime-mode=release && ninja -C customEngine/src/out/android_release_x86
+export PATH=$PATH:$(pwd)/depot_tools && customEngine/src/flutter/tools/gn --no-goma --android --android-cpu=x64 --runtime-mode=release && ninja -C customEngine/src/out/android_release_x64
 cd "$ROOT_DIR"
 cp customEngine/src/out/android_release_arm64/lib.stripped/libflutter.so libflutter_arm64.so 2>/dev/null
 cp customEngine/src/out/android_release/lib.stripped/libflutter.so libflutter_arm.so 2>/dev/null
 cp customEngine/src/out/android_release_x64/lib.stripped/libflutter.so libflutter_x64.so 2>/dev/null
-cp customEngine/src/out/android_release_x86/lib.stripped/libflutter.so libflutter_x86.so 2>/dev/null
 export PATH=$PATH:$(pwd)/depot_tools && sudo xcode-select -s /Applications/Xcode.app && customEngine/src/flutter/tools/gn --ios --ios-cpu=arm64 --runtime-mode=release && ninja -C customEngine/src/out/ios_release
  cp customEngine/src/out/ios_release/Flutter.framework/Flutter Flutter
