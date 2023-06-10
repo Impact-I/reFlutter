@@ -18,3 +18,4 @@ test.py
 src/__pycache__/
 flutter/
 reflutter.egg-info/
+goma/
