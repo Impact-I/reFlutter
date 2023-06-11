@@ -135,7 +135,7 @@ def convertIPFix():
     for i in intoct:
         if len(i) != 3 and int(i) > 7 and int(i) > 63 and len('.'.join(intoct)) < 15:  # 64-99
             intoct[intoct.index(i)] = str(oct(int(i))).replace('o', '')
-        elif len(i) != 3 and int(i) > 7 and int(i) < 64 and len('.'.join(intoct)) < 15:  # 8-63
+        elif len(i) != 3 and 7 < int(i) < 64 and len('.'.join(intoct)) < 15:  # 8-63
             intoct[intoct.index(i)] = str(oct(int(i))).replace('o', '')
         elif len(i) < 3 and int(i) < 8 and len('.'.join(intoct)) < 15:  # 0-7
             intoct[intoct.index(i)] = intoct[intoct.index(i)].zfill(3)
@@ -284,6 +284,7 @@ def patchSource(hashS, ver):
                     'Var("dart_root") + "/third_party/pkg/tflite_native":\n      Var("dart_git") + "tflite_native.git" + "@" + Var("tflite_native_rev"),',
                     '')
     if ver >= 24 and patchDump:
+        # doesn't exist in current versions
         replaceFileText('src/third_party/dart/runtime/vm/clustered_snapshot.cc',
                         'monomorphic_entry_point + unchecked_offset', 'previous_text_offset_')
     if ver < 24 and patchDump:
@@ -336,7 +337,7 @@ def patchSource(hashS, ver):
         replaceFileText('DEPS',
                         "   'src/third_party/dart/pkg/analysis_server/language_model': {\n     'packages': [\n       {\n        'package': 'dart/language_model',\n        'version': 'lIRt14qoA1Cocb8j3yw_Fx5cfYou2ddam6ArBm4AI6QC',\n       }\n     ],\n     'dep_type': 'cipd',\n   },\n",
                         "")
-    if ver <= 13 and ver > 10:
+    if 13 >= ver > 10:
         replaceFileText("DEPS",
                         "  'src/third_party/tonic':\n   Var('fuchsia_git') + '/tonic' + '@' + '1a8ed9be2e2b56b32e888266d6db465d36012df4',\n",
                         "")
@@ -344,7 +345,7 @@ def patchSource(hashS, ver):
             shutil.copytree('../tonic', 'src/third_party/tonic')
         except:
             pass
-    if ver <= 10 and ver > 6:
+    if 10 >= ver > 6:
         replaceFileText("DEPS",
                         "  'src/third_party/tonic':\n   Var('fuchsia_git') + '/tonic' + '@' + 'bd27b4549199df72fcaeefd259ebc12a31c2e4ee',\n",
                         "")
@@ -470,5 +471,5 @@ def main():
                     if os.path.exists("src/third_party/dart/runtime/vm/dart.cc") or os.path.exists(
                             "tools/generate_package_config/pubspec.yaml") or os.path.exists("DEPS"):
                         patchSource(libappHash, abs(i))
-    except (IndexError, ValueError) as e:
+    except (IndexError, ValueError):
         print("USAGE:\nreflutter your.(apk)|(ipa)")
