@@ -292,12 +292,8 @@ def patchSource(hashS, ver):
     if ver < 39 and patchDump:
         replaceFileText('src/third_party/dart/runtime/vm/app_snapshot.cc', 'monomorphic_entry_point + unchecked_offset',
                         'previous_text_offset_')
-        replaceFileText('src/third_party/dart/runtime/vm/object.cc', 'monomorphic_entry_point + unchecked_offset',
-                        'previous_text_offset_')
     if ver > 38 and patchDump:
         replaceFileText('src/third_party/dart/runtime/vm/app_snapshot.cc', 'monomorphic_entry_point + unchecked_offset',
-                        'instructions_table_.rodata()->entries()[instructions_table_.rodata()->first_entry_with_code + instructions_index_-1].pc_offset')
-        replaceFileText('src/third_party/dart/runtime/vm/object.cc', 'monomorphic_entry_point + unchecked_offset',
                         'instructions_table_.rodata()->entries()[instructions_table_.rodata()->first_entry_with_code + instructions_index_-1].pc_offset')
     if patchDump:
         replaceFileText('src/third_party/dart/runtime/vm/dart.cc', 'FLAG_print_class_table)', 'true)')
