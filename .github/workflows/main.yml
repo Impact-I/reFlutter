@@ -7,12 +7,12 @@ on:
 
 jobs:
   build-v2:
-    runs-on: macos-latest
+    runs-on: macos-13.3
     steps:
       - name: Check out repository od
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3.5.3
       - name: Setup Xcode version
-        uses: maxim-lobanov/setup-xcode@v1.3.0
+        uses: maxim-lobanov/setup-xcode@v1.5.1
         with:
           xcode-version: latest-stable
       - name: Set variables
@@ -22,14 +22,8 @@ jobs:
       - name: Install tools
         run: |
           brew update
-          brew install libzip openssl libplist autoconf automake libtool autoconf-archive pkg-config ninja
-          export PKG_CONFIG_PATH=$PKG_CONFIG_PATH:/usr/local/opt/openssl@1.1/lib/pkgconfig
-          git clone https://github.com/libimobiledevice/libplist
-          cd libplist && ./autogen.sh --without-cython && sudo make install && cd ..
-          cd libusbmuxd && ./autogen.sh && sudo make install && cd ..
+          brew install libzip openssl libplist autoconf automake libtool autoconf-archive pkg-config ninja libusbmuxd ideviceinstaller ios-deploy
           xcrun --sdk macosx --show-sdk-path
-          brew install ideviceinstaller
-          brew install ios-deploy
           pip3 install wheel
           pip3 install .
           git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git
@@ -76,12 +70,12 @@ jobs:
             ./*.so
 
   build-v3:
-    runs-on: macos-latest
+    runs-on: macos-13.3
     steps:
       - name: Check out repository od
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3.5.3
       - name: Setup Xcode version
-        uses: maxim-lobanov/setup-xcode@v1.3.0
+        uses: maxim-lobanov/setup-xcode@v1.5.1
         with:
           xcode-version: latest-stable
       - name: Set variables
@@ -91,14 +85,8 @@ jobs:
       - name: Install tools
         run: |
           brew update
-          brew install libzip openssl libplist autoconf automake libtool autoconf-archive pkg-config ninja
-          export PKG_CONFIG_PATH=$PKG_CONFIG_PATH:/usr/local/opt/openssl@1.1/lib/pkgconfig
-          git clone https://github.com/libimobiledevice/libplist
-          cd libplist && ./autogen.sh --without-cython && sudo make install && cd ..
-          cd libusbmuxd && ./autogen.sh && sudo make install && cd ..
+          brew install libzip openssl libplist autoconf automake libtool autoconf-archive pkg-config ninja libusbmuxd ideviceinstaller ios-deploy
           xcrun --sdk macosx --show-sdk-path
-          brew install ideviceinstaller
-          brew install ios-deploy
           pip3 install wheel
           pip3 install .
           git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git
