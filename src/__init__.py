@@ -283,6 +283,15 @@ def patchSource(hashS, ver):
     replaceFileText('DEPS',
                     'Var("dart_root") + "/third_party/pkg/tflite_native":\n      Var("dart_git") + "tflite_native.git" + "@" + Var("tflite_native_rev"),',
                     '')
+
+    if ver >= 24 and patchDump:
+        replaceFileText('src/third_party/dart/runtime/vm/object.cc',
+                        'monomorphic_entry_point + unchecked_offset', 'previous_text_offset_')
+
+    if ver < 24 and patchDump:
+        replaceFileText('src/third_party/dart/runtime/vm/object.cc',
+                        'monomorphic_entry_point + unchecked_offset', 'bare_offset')
+
     if ver >= 24 and patchDump:
         replaceFileText('src/third_party/dart/runtime/vm/clustered_snapshot.cc',
                         'monomorphic_entry_point + unchecked_offset', 'previous_text_offset_')
@@ -297,8 +306,11 @@ def patchSource(hashS, ver):
                         'instructions_table_.rodata()->entries()[instructions_table_.rodata()->first_entry_with_code + instructions_index_-1].pc_offset')
     if patchDump:
         replaceFileText('src/third_party/dart/runtime/vm/dart.cc', 'FLAG_print_class_table)', 'true)')
+        replaceFileText('src/third_party/dart/runtime/vm/dart_api_impl.cc', 'FLAG_print_class_table)', 'true)')
         replaceFileText('src/third_party/dart/runtime/vm/class_table.cc', '#include "vm/visitor.h"',
                         '#include "vm/visitor.h"\n#include <sys/stat.h>')
+        replaceFileText('src/third_party/dart/runtime/vm/class_table.cc', 'print_class_table, false', 'print_class_table, true')
+
     if ver > 27:
         replaceFileText('src/flutter/BUILD.gn',
                         '  if (is_android) {\n    public_deps +=\n        [ "//flutter/shell/platform/android:flutter_shell_native_unittests" ]\n  }',

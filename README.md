@@ -188,9 +188,9 @@ EXAMPLE BUILD ANDROID ARM64:
 docker run -e WAIT=300 -e x64=0 -e arm=0 -e HASH_PATCH=<Snapshot_Hash> -e COMMIT=<Engine_commit> --rm -iv${PWD}:/t reflutter
 
 FLAGS:
--e x64=0 <disables building for x64 archiitechture, use to reduce building time>
--e arm64=0 <disables building for arm64 archiitechture, use to reduce building time>
--e arm=0 <disables building for arm32 archiitechture, use to reduce building time>
+-e x64=0 <disables building for x64 architecture, use to reduce building time>
+-e arm64=0 <disables building for arm64 architecture, use to reduce building time>
+-e arm=0 <disables building for arm32 architecture, use to reduce building time>
 -e WAIT=300 <the amount of time in seconds you need to edit source code>
 -e HASH_PATCH=[Snapshot_Hash] <here you need to specify snapshot hash which matches the engine_commit line of enginehash.csv table best. It is used for proper patch search in reFlutter and for successfull compilation>
 -e COMMIT=[Engine_commit] <here you specify commit for your engine version, take it from enginehash.csv table or from flutter/engine repo>
