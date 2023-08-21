@@ -301,7 +301,7 @@ def patchSource(hashS, ver):
         replaceFileText('src/third_party/dart/runtime/vm/dart_api_impl.cc', 'FLAG_print_class_table)', 'true)')
         replaceFileText('src/third_party/dart/runtime/vm/class_table.cc', '#include "vm/visitor.h"',
                         '#include "vm/visitor.h"\n#include <sys/stat.h>')
-        replaceFileText('src/third_party/dart/runtime/vm/class_table.cc', 'print_class_table, false', 'print_class_table, true')
+        #replaceFileText('src/third_party/dart/runtime/vm/class_table.cc', 'print_class_table, false', 'print_class_table, true')
 
     if ver > 27:
         replaceFileText('src/flutter/BUILD.gn',
