@@ -9,7 +9,7 @@ jobs:
   build-v3:
     runs-on: macos-latest
     steps:
-      - name: Check out repository od
+      - name: Check out repository
         uses: actions/checkout@v2
       - name: Setup Xcode version
         uses: maxim-lobanov/setup-xcode@v1.3.0
