@@ -270,13 +270,6 @@ def patchSource(hashS, ver):
                     'Var("dart_root") + "/third_party/pkg/tflite_native":\n      Var("dart_git") + "tflite_native.git" + "@" + Var("tflite_native_rev"),',
                     '')
 
-    if ver >= 24 and patchDump:
-        replaceFileText('src/third_party/dart/runtime/vm/object.cc',
-                        'monomorphic_entry_point + unchecked_offset', 'previous_text_offset_')
-
-    if ver < 24 and patchDump:
-        replaceFileText('src/third_party/dart/runtime/vm/object.cc',
-                        'monomorphic_entry_point + unchecked_offset', 'bare_offset')
 
     if ver >= 24 and patchDump:
         replaceFileText('src/third_party/dart/runtime/vm/clustered_snapshot.cc',
