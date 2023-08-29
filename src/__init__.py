@@ -9,12 +9,8 @@ import zipfile
 from os.path import join
 from zipfile import ZipFile
 
-if sys.version_info[0] >= 3:
-    from urllib.request import urlretrieve
-    from urllib.request import urlopen
-else:
-    from urllib import urlretrieve
-    from urllib import urlopen
+from urllib.request import urlretrieve
+from urllib.request import urlopen
 
 patchDump = False
 
@@ -45,11 +41,7 @@ def patchLibrary():
 
 def patchCase():
     global patchDump
-    try:
-        choice = raw_input(
-            "\n Choose an option: \n\n 1. Traffic monitoring and interception \n 2. Display absolute code offset for functions\n\n [1/2]? ").lower()
-    except:
-        choice = input(
+    choice = input(
             '\n Choose an option: \n\n 1. Traffic monitoring and interception \n 2. Display absolute code offset for functions\n\n [1/2]? ').lower()
     if choice == "1":
         patchDump = False
@@ -66,16 +58,10 @@ def patchCase():
 
 def inputIPBurp():
     global IPBurp
-    try:
-        IPBurp = raw_input("\nExample: (192.168.1.154) etc.\nPlease enter your BurpSuite IP: ")
-        if not re.match(r'[0-9]+(?:\.[0-9]+){3}', IPBurp):
-            print("Invalid IP Address")
-            inputIPBurp()
-    except:
-        IPBurp = input('\nExample: (192.168.1.154) etc.\nPlease enter your BurpSuite IP: ')
-        if not re.match(r'[0-9]+(?:\.[0-9]+){3}', IPBurp):
-            print("Invalid IP Address")
-            inputIPBurp()
+    IPBurp = input('\nExample: (192.168.1.154) etc.\nPlease enter your BurpSuite IP: ')
+    if not re.match(r'[0-9]+(?:\.[0-9]+){3}', IPBurp):
+        print("Invalid IP Address")
+        inputIPBurp()
     convertIPFix()
 
 
