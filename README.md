@@ -1,6 +1,6 @@
 [![stars](https://img.shields.io/github/stars/Impact-I/reFlutter)](https://github.com/Impact-I/reFlutter/stargazers)
 
-<p align="center"><img src="https://user-images.githubusercontent.com/87244850/135659542-22bb8496-bf26-4e25-b7c1-ffd8fc0cea10.png" width="75%"/></p>
+<p align="center"><img src="https://github.com/AbhiTheModder/reFlutter/assets/85984486/63374660-39f6-40aa-bedf-0fc322085420" width="150" height="150" /><img src="https://user-images.githubusercontent.com/87244850/135659542-22bb8496-bf26-4e25-b7c1-ffd8fc0cea10.png" width="75%"/></p>
 
 **Read more on the blog:** https://swarm.ptsecurity.com/fork-bomb-for-flutter/
 
