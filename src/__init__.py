@@ -288,14 +288,14 @@ def patchSource(hashS, ver):
         replaceFileText('src/third_party/dart/runtime/vm/dart_api_impl.cc', 'FLAG_print_class_table)', 'true)')
         replaceFileText('src/third_party/dart/runtime/vm/class_table.cc', '#include "vm/visitor.h"',
                         '#include "vm/visitor.h"\n#include <sys/stat.h>')
-        replaceFileText('src/third_party/dart/runtime/vm/class_table.cc', 'print_class_table, false', 'print_class_table, true')
+        # replaceFileText('src/third_party/dart/runtime/vm/class_table.cc', 'print_class_table, false', 'print_class_table, true')
 
     if ver > 27:
         replaceFileText('src/flutter/BUILD.gn',
                         '  if (is_android) {\n    public_deps +=\n        [ "//flutter/shell/platform/android:flutter_shell_native_unittests" ]\n  }',
                         '')
-    # TODO:- patch dump for ver > 55
-    if 27 < ver < 55 and patchDump:
+    # TODO:- patch dump for ver > 53
+    if 27 < ver < 54 and patchDump:
         replaceFileText('src/third_party/dart/runtime/vm/class_table.cc', '::Print() {',
                         '::Print()  { OS::PrintErr("reFlutter");\n char pushArr[1600000]="";\n')
         replaceFileText('src/third_party/dart/runtime/vm/class_table.cc',
