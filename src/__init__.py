@@ -294,8 +294,8 @@ def patchSource(hashS, ver):
         replaceFileText('src/flutter/BUILD.gn',
                         '  if (is_android) {\n    public_deps +=\n        [ "//flutter/shell/platform/android:flutter_shell_native_unittests" ]\n  }',
                         '')
-    # TODO:- patch dump for ver > 53
-    if 27 < ver < 54 and patchDump:
+    # TODO:- patch dump for ver >= 53
+    if 27 < ver < 53 and patchDump:
         replaceFileText('src/third_party/dart/runtime/vm/class_table.cc', '::Print() {',
                         '::Print()  { OS::PrintErr("reFlutter");\n char pushArr[1600000]="";\n')
         replaceFileText('src/third_party/dart/runtime/vm/class_table.cc',
