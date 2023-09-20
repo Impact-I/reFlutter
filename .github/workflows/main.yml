@@ -9,7 +9,7 @@ jobs:
   build-v2:
     runs-on: macos-latest
     steps:
-      - name: Check out repository od
+      - name: Check out repository
         uses: actions/checkout@v2
       - name: Setup Xcode version
         uses: maxim-lobanov/setup-xcode@v1.3.0
@@ -55,7 +55,7 @@ jobs:
           cp customEngine/src/out/ios_release/Flutter.framework/Flutter Flutter
           cp customEngine/src/out/android_release_arm64/lib.stripped/libflutter.so libflutter_arm64.so 2>/dev/null || :
           cp customEngine/src/out/android_release/lib.stripped/libflutter.so libflutter_arm.so 2>/dev/null || :
-      - name: iOS-release
+      - name: iOS-Release
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ios-v2-${{env.SNAPSHOT_HASH}}
@@ -71,7 +71,7 @@ jobs:
   build-v3:
     runs-on: macos-latest
     steps:
-      - name: Check out repository od
+      - name: Check out repository
         uses: actions/checkout@v2
       - name: Setup Xcode version
         uses: maxim-lobanov/setup-xcode@v1.3.0
