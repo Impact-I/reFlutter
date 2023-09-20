@@ -7,10 +7,9 @@ import string
 import sys
 import zipfile
 from os.path import join
-from zipfile import ZipFile
-
-from urllib.request import urlretrieve
 from urllib.request import urlopen
+from urllib.request import urlretrieve
+from zipfile import ZipFile
 
 patchDump = False
 
@@ -42,7 +41,7 @@ def patchLibrary():
 def patchCase():
     global patchDump
     choice = input(
-            '\n Choose an option: \n\n 1. Traffic monitoring and interception \n 2. Display absolute code offset for functions\n\n [1/2]? ').lower()
+        '\n Choose an option: \n\n 1. Traffic monitoring and interception \n 2. Display absolute code offset for functions\n\n [1/2]? ').lower()
     if choice == "1":
         patchDump = False
         return
@@ -269,7 +268,6 @@ def patchSource(hashS, ver):
     replaceFileText('DEPS',
                     'Var("dart_root") + "/third_party/pkg/tflite_native":\n      Var("dart_git") + "tflite_native.git" + "@" + Var("tflite_native_rev"),',
                     '')
-
 
     if ver >= 24 and patchDump:
         replaceFileText('src/third_party/dart/runtime/vm/clustered_snapshot.cc',
