@@ -21,10 +21,11 @@ jobs:
           echo "SNAPSHOT_HASH=$HASH" >> $GITHUB_ENV
       - name: Install tools
         run: |
-          brew install ninja libusbmuxd ideviceinstaller ios-deploy
+          brew install ninja libusbmuxd ideviceinstaller ios-deploy python3@11
+          brew link --overwrite python@3.11 --force
           xcrun --sdk macosx --show-sdk-path
-          pip3 install wheel
-          pip3 install .
+          python3 -m pip install wheel
+          python3 -m pip install .
           git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git
           git clone https://github.com/flutter/engine.git
       - name: gclient sync
@@ -83,9 +84,10 @@ jobs:
           echo "SNAPSHOT_HASH=$HASH" >> $GITHUB_ENV
       - name: Install tools
         run: |
-          brew install ninja libusbmuxd ideviceinstaller ios-deploy
-          pip3 install wheel
-          pip3 install .
+          brew install ninja libusbmuxd ideviceinstaller ios-deploy python3@11
+          brew link --overwrite python@3.11 --force
+          python3 -m pip install wheel
+          python3 -m pip install .
           git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git
           git clone https://github.com/flutter/engine.git
       - name: gclient sync
