@@ -21,7 +21,7 @@ jobs:
           echo "SNAPSHOT_HASH=$HASH" >> $GITHUB_ENV
       - name: Install tools
         run: |
-          brew install ninja libusbmuxd ideviceinstaller ios-deploy python3@11
+          brew install ninja libusbmuxd ideviceinstaller ios-deploy python@3.11
           brew link --overwrite python@3.11 --force
           xcrun --sdk macosx --show-sdk-path
           python3 -m pip install wheel
@@ -84,7 +84,7 @@ jobs:
           echo "SNAPSHOT_HASH=$HASH" >> $GITHUB_ENV
       - name: Install tools
         run: |
-          brew install ninja libusbmuxd ideviceinstaller ios-deploy python3@11
+          brew install ninja libusbmuxd ideviceinstaller ios-deploy python@3.11
           brew link --overwrite python@3.11 --force
           python3 -m pip install wheel
           python3 -m pip install .
