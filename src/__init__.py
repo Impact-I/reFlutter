@@ -288,6 +288,10 @@ def patchSource(hashS, ver):
                         '#include "vm/visitor.h"\n#include <sys/stat.h>')
         # replaceFileText('src/third_party/dart/runtime/vm/class_table.cc', 'print_class_table, false', 'print_class_table, true')
 
+        # new fix for patch dump
+        replaceFileText('src/third_party/dart/runtime/vm/app_snapshot.cc', 'ASSERT(code->IsCode());',
+                        'ASSERT(code->IsCode());\n auto& rCode = Code::Handle(code); auto& rClass = Class::Handle(func.Owner()); auto& rLib = Library::Handle(rClass.library()); auto& rlibName = String::Handle(rLib.url()); JSONWriter js; js.OpenObject(); js.PrintProperty("method_name", func.UserVisibleNameCString()); js.PrintProperty("offset", offset); auto& sig = String::Handle(func.InternalSignature()); js.PrintProperty("library_url", rlibName.ToCString()); js.PrintProperty("class_name", rClass.UserVisibleNameCString()); js.CloseObject(); char* buffer = nullptr; intptr_t buffer_length = 0; js.Steal(&buffer, &buffer_length);\n')
+
     if ver > 27:
         replaceFileText('src/flutter/BUILD.gn',
                         '  if (is_android) {\n    public_deps +=\n        [ "//flutter/shell/platform/android:flutter_shell_native_unittests" ]\n  }',
