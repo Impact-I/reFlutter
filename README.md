@@ -51,7 +51,6 @@ impact@f:~$ reflutter main.ipa
 
 You need to specify the IP of your Burp Suite Proxy Server located in the same network where the device with the flutter application is. Next, you should configure the Proxy in `BurpSuite -> Listener Proxy -> Options tab`
 
-- Disable `HTTP/2` in BurpSuite in all settings for a project
 - Add port: `8083`
 - Bind to address: `All interfaces`
 - Request handling: Support invisible proxying = `True`
