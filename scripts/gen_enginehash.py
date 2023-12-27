@@ -52,21 +52,24 @@ def get_snapshot_hash(engine_hash: str) -> str | None:
 with open(log_file_path, 'w') as f:
     f.write('version,Engine_commit,Snapshot_Hash\n')
 
+"""
 if isdir(flutter_path):
     rmtree(flutter_path)
+"""
 
 cli(['git', 'clone', 'https://github.com/flutter/flutter.git', flutter_path])
 
-for data in get(release_url).json()['releases']:
-    _engine_hash = data['hash']
-    engine = cli(['./gen_enginehash.sh', _engine_hash]).rstrip().strip()
-    data['engine_commit'] = engine
-    print(data)
-    data['snapshot_hash'] = get_snapshot_hash(data['engine_commit'])
-    if data['snapshot_hash'] is not None:
-        log_data = '{},{},{}\n'.format(data['version'], data['engine_commit'], data['snapshot_hash'])
-        log_file(log_data)
-        print(log_data)
+if isdir(flutter_path):
+    for data in get(release_url).json()['releases']:
+        _engine_hash = data['hash']
+        engine = cli(['./gen_enginehash.sh', _engine_hash]).rstrip().strip()
+        data['engine_commit'] = engine
+        print(data)
+        data['snapshot_hash'] = get_snapshot_hash(data['engine_commit'])
+        if data['snapshot_hash'] is not None:
+            log_data = '{},{},{}\n'.format(data['version'], data['engine_commit'], data['snapshot_hash'])
+            log_file(log_data)
+            print(log_data)
 
-# save file
-cli(['mv', log_file_path, log_file_final])
+    # save file
+    cli(['mv', log_file_path, log_file_final])
