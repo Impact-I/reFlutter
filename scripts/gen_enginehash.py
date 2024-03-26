@@ -52,10 +52,8 @@ def get_snapshot_hash(engine_hash: str) -> str | None:
 with open(log_file_path, 'w') as f:
     f.write('version,Engine_commit,Snapshot_Hash\n')
 
-"""
 if isdir(flutter_path):
     rmtree(flutter_path)
-"""
 
 cli(['git', 'clone', 'https://github.com/flutter/flutter.git', flutter_path])
 
