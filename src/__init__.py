@@ -281,8 +281,7 @@ def patchSource(hashS, ver):
     if ver > 38 and patchDump:
         # replaceFileText('src/third_party/dart/runtime/vm/app_snapshot.cc', 'monomorphic_entry_point + unchecked_offset', 'instructions_table_.rodata()->entries()[instructions_table_.rodata()->first_entry_with_code + instructions_index_-1].pc_offset')
         replaceFileText('src/third_party/dart/runtime/vm/app_snapshot.cc', """code->untag()->monomorphic_unchecked_entry_point_ =
-      monomorphic_entry_point + unchecked_offset;""", """auto& offset = instructions_table_.rodata()->entries()[instructions_table_.rodata()->first_entry_with_code + instructions_index_ - 1].pc_offset;
-  code->untag()->monomorphic_unchecked_entry_point_ = offset;""")
+      monomorphic_entry_point + unchecked_offset;""", """auto& offset = instructions_table_.rodata()->entries()[instructions_table_.rodata()->first_entry_with_code + instructions_index_ - 1].pc_offset;\ncode->untag()->monomorphic_unchecked_entry_point_ = offset;""")
 
         # new fix for patch dump
         replaceFileText('src/third_party/dart/runtime/vm/app_snapshot.cc', 'ASSERT(code->IsCode());',
