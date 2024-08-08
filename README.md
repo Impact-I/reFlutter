@@ -12,7 +12,7 @@ Key features:
 - `dart.cc` is modified to print classes, functions and some fields;
 - display absolute code offset for functions
 - contains minor changes for successfull compilation;
-- if you would like to implement your own patches, there is manual Flutter code change is supported using specially crafted `Dockerfile`
+- if you would like to implement your own patches, manual Flutter code changes are supported using a specially crafted `Dockerfile`
 
 ### Supported engines
 
