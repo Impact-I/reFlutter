@@ -46,7 +46,7 @@ jobs:
           gclient sync
           reflutter ${{env.SNAPSHOT_HASH}} -l
       - name: ninja build Flutter.framework
-        run: export PATH=$PATH:`pwd`/depot_tools && sudo xcode-select -s /Applications/Xcode.app && customEngine/src/flutter/tools/gn --no-goma --ios --ios-cpu=arm64 --runtime-mode=release && ninja -C customEngine/src/out/ios_release
+        run: export PATH=$PATH:`pwd`/depot_tools && sudo xcode-select -s /Applications/Xcode.app && customEngine/src/flutter/tools/gn --no-goma --ios --mac-cpu=arm64 --runtime-mode=release && ninja -C customEngine/src/out/ios_release
       - name: ninja build libflutter_arm64
         run: export PATH=$PATH:`pwd`/depot_tools && customEngine/src/flutter/tools/gn --no-goma --android --android-cpu=arm64 --runtime-mode=release && ninja -C customEngine/src/out/android_release_arm64
       - name: ninja build libflutter_arm
@@ -109,7 +109,7 @@ jobs:
           gclient sync
           reflutter ${{env.SNAPSHOT_HASH}} -l patchDump
       - name: ninja build Flutter.framework
-        run: export PATH=$PATH:`pwd`/depot_tools && sudo xcode-select -s /Applications/Xcode.app && customEngine/src/flutter/tools/gn --no-goma --ios --ios-cpu=arm64 --runtime-mode=release && ninja -C customEngine/src/out/ios_release
+        run: export PATH=$PATH:`pwd`/depot_tools && sudo xcode-select -s /Applications/Xcode.app && customEngine/src/flutter/tools/gn --no-goma --ios --mac-cpu=arm64 --runtime-mode=release && ninja -C customEngine/src/out/ios_release
       - name: ninja build libflutter_arm64
         run: export PATH=$PATH:`pwd`/depot_tools && customEngine/src/flutter/tools/gn --no-goma --android --android-cpu=arm64 --runtime-mode=release && ninja -C customEngine/src/out/android_release_arm64
       - name: ninja build libflutter_arm
