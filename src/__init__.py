@@ -327,6 +327,8 @@ def patchSource(hashS, ver):
     replaceFileText('src/third_party/boringssl/src/ssl/ssl_x509.cc',
                     'static int ssl_crypto_x509_session_verify_cert_chain(SSL_SESSION *session,\n                                                      SSL_HANDSHAKE *hs,\n                                                      uint8_t *out_alert) {',
                     'static int ssl_crypto_x509_session_verify_cert_chain(SSL_SESSION *session,\n                                                      SSL_HANDSHAKE *hs,\n                                                      uint8_t *out_alert) {return 1;')
+
+    # fix for > 3.22.0. weird huh
     replaceFileText('src/third_party/boringssl/src/ssl/ssl_x509.cc', """static bool ssl_crypto_x509_session_verify_cert_chain(SSL_SESSION *session,
                                                       SSL_HANDSHAKE *hs,
                                                       uint8_t *out_alert) {""", """static bool ssl_crypto_x509_session_verify_cert_chain(SSL_SESSION *session,
