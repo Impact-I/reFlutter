@@ -185,12 +185,14 @@ docker run -it -v "$(pwd):/t" -e HASH_PATCH=aa64af18e7d086041ac127cc4bc50c5e -e 
 # Linux, Windows
 
 EXAMPLE BUILD ANDROID ARM64:
+```bash
 docker run -e WAIT=300 -e x64=0 -e arm=0 -e HASH_PATCH=<Snapshot_Hash> -e COMMIT=<Engine_commit> --rm -iv${PWD}:/t reflutter
+```
 
-FLAGS:
--e x64=0 <disables building for x64 architecture, use to reduce building time>
--e arm64=0 <disables building for arm64 architecture, use to reduce building time>
--e arm=0 <disables building for arm32 architecture, use to reduce building time>
--e WAIT=300 <the amount of time in seconds you need to edit source code>
--e HASH_PATCH=[Snapshot_Hash] <here you need to specify snapshot hash which matches the engine_commit line of enginehash.csv table best. It is used for proper patch search in reFlutter and for successfull compilation>
--e COMMIT=[Engine_commit] <here you specify commit for your engine version, take it from enginehash.csv table or from flutter/engine repo>
+FLAGS:<br/>
+-e x64=0 <disables building for x64 architecture, use to reduce building time><br/>
+-e arm64=0 <disables building for arm64 architecture, use to reduce building time><br/>
+-e arm=0 <disables building for arm32 architecture, use to reduce building time><br/>
+-e WAIT=300 <the amount of time in seconds you need to edit source code><br/>
+-e HASH_PATCH=[Snapshot_Hash] <here you need to specify snapshot hash which matches the engine_commit line of enginehash.csv table best. It is used for proper patch search in reFlutter and for successfull compilation><br/>
+-e COMMIT=[Engine_commit] <here you specify commit for your engine version, take it from enginehash.csv table or from flutter/engine repo><br/>
