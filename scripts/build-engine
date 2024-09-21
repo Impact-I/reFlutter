@@ -51,6 +51,7 @@ echo 'solutions = [{"managed": False,"name": "src/flutter","url": "'"$ROOT_DIR"/
 gclient sync
 reflutter "$SNAPSHOT_HASH" -l
 cd "$ROOT_DIR"
+exit
 export PATH=$PATH:$(pwd)/depot_tools && sudo xcode-select -s /Applications/Xcode.app && customEngine/src/flutter/tools/gn --ios --runtime-mode=release && ninja -C customEngine/src/out/ios_release
  cp customEngine/src/out/ios_release/Flutter.framework/Flutter Flutter
 cd "$ROOT_DIR"
