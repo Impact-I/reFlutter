@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 """
-Get snapshot hash
+Get Snapshot Hash
 """
 
 import re
@@ -10,32 +10,32 @@ import sys
 
 
 def usage():
-    print('[-] Usage: python {} [lib_app_library]'.format(sys.argv[0]))
+    print('[-] Usage: python {} [libapp.so]'.format(sys.argv[0]))
     sys.exit(1)
 
 
 if len(sys.argv) != 2:
     usage()
 
-fname = sys.argv[1]
-min = 32
+file_name = sys.argv[1]
+min_hash_length = 32
 if sys.version_info >= (3, 0):
-    f = open(fname, errors="ignore")
+    f = open(file_name, errors="ignore")
 else:
-    f = open(fname, 'rb')
+    f = open(file_name, 'rb')
 
-libappHash = ""
+lib_app_hash = ""
 result = ""
 for c in f.read():
     if c in string.printable:
         result += c
         continue
-    if len(result) >= min:
+    if len(result) >= min_hash_length:
         hashT = re.findall(r"([a-f\d]{32})", result)
         if len(hashT) > 0:
-            libappHash = hashT[0]
+            lib_app_hash = hashT[0]
             break
         f.close()
     result = ""
 
-print(libappHash)
+print(lib_app_hash)
