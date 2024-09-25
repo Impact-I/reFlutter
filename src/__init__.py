@@ -327,11 +327,9 @@ def patchSource(hashS, ver):
     replaceFileText('src/third_party/boringssl/src/ssl/ssl_x509.cc',
                     'static int ssl_crypto_x509_session_verify_cert_chain(SSL_SESSION *session,\n                                                      SSL_HANDSHAKE *hs,\n                                                      uint8_t *out_alert) {',
                     'static int ssl_crypto_x509_session_verify_cert_chain(SSL_SESSION *session,\n                                                      SSL_HANDSHAKE *hs,\n                                                      uint8_t *out_alert) {return 1;')
-    replaceFileText('src/third_party/boringssl/src/ssl/ssl_x509.cc', """static bool ssl_crypto_x509_session_verify_cert_chain(SSL_SESSION *session,
-                                                      SSL_HANDSHAKE *hs,
-                                                      uint8_t *out_alert) {""", """static bool ssl_crypto_x509_session_verify_cert_chain(SSL_SESSION *session,
-                                                      SSL_HANDSHAKE *hs,
-                                                      uint8_t *out_alert) { return true;""")
+
+    patch_ssl_x509() # hard patch
+
     if ver == 26 or ver == 27:
         replaceFileText('tools/generate_package_config/pubspec.yaml', 'package_config: any', 'package_config: 1.9.3')
     if ver == 24:
