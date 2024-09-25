@@ -438,12 +438,14 @@ def extractZip(zipname):
         replaceLibFlutter()
 
 def patch_ssl_x509():
-    if not os.path.exists(SSL_X590):
-        urlretrieve(f"https://raw.githubusercontent.com/Impact-I/reFlutter/main/scripts/{SSL_X590}", SSL_X590)
+    try:
+        if not os.path.exists(SSL_X590):
+            urlretrieve(f"https://raw.githubusercontent.com/Impact-I/reFlutter/main/scripts/{SSL_X590}", SSL_X590)
 
-    with open(f"src/third_party/boringssl/src/ssl/{SSL_X590}", "w") as f:
-        f.write(open(SSL_X590).read())
-
+        with open(f"src/third_party/boringssl/src/ssl/{SSL_X590}", "w") as f:
+            f.write(open(SSL_X590).read())
+    except:
+        pass
 
 def main():
     global libappHash, patchDump
