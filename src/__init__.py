@@ -21,7 +21,7 @@ libAppX86 = '', ''
 libios = '', ''
 libappHash = ''
 ZIPSTORED = False
-
+SSL_X590 = 'ssl_x509.cc'
 
 def patchLibrary():
     if len(libios[1]) != 0:
@@ -438,6 +438,13 @@ def extractZip(zipname):
                 libAppX86 = fileName, ELFF(sys.argv[1])
         zipObject.close()
         replaceLibFlutter()
+
+def patch_ssl_x509():
+    if not os.path.exists(SSL_X590):
+        urlretrieve(f"https://raw.githubusercontent.com/Impact-I/reFlutter/main/scripts/{SSL_X590}", SSL_X590)
+
+    with open(f"src/third_party/boringssl/src/ssl/{SSL_X590}", "w") as f:
+        f.write(open(SSL_X590).read())
 
 
 def main():
