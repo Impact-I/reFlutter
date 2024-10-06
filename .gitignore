@@ -20,3 +20,4 @@ src/__pycache__/
 flutter/
 reflutter.egg-info/
 goma/
+.venv/
