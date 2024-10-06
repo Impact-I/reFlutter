@@ -7,10 +7,7 @@ ROOT_DIR=$(pwd)
 brew update
 brew install libzip openssl libplist autoconf automake libtool autoconf-archive pkg-config ninja
 export PKG_CONFIG_PATH=$PKG_CONFIG_PATH:/usr/local/opt/openssl@1.1/lib/pkgconfig
-git clone https://github.com/libimobiledevice/libplist
-cd libplist && ./autogen.sh --without-cython && sudo make install && cd ..
-git clone https://github.com/libimobiledevice/libusbmuxd
-cd libusbmuxd && ./autogen.sh && sudo make install && cd ..
+brew install libplist libusbmuxd
 cd "$ROOT_DIR"
 xcrun --sdk macosx --show-sdk-path
 brew install ideviceinstaller

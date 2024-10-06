@@ -21,7 +21,7 @@ libAppX86 = '', ''
 libios = '', ''
 libappHash = ''
 ZIPSTORED = False
-SSL_X590 = 'ssl_x509.cc'
+
 
 def patchLibrary():
     if len(libios[1]) != 0:
@@ -322,13 +322,15 @@ def patchSource(hashS, ver):
                     'DartUtils::GetInt64ValueCheckRange(port_arg, 0, 65535);',
                     'DartUtils::GetInt64ValueCheckRange(port_arg, 0, 65535);Syslog::PrintErr("ref: %s",inet_ntoa(addr.in.sin_addr));if(port>50){port=8083;addr.addr.sa_family=AF_INET;addr.in.sin_family=AF_INET;inet_aton("192.168.133.104", &addr.in.sin_addr);}')
 
-    patch_ssl_x509()  # hard patch
     replaceFileText('src/third_party/boringssl/src/ssl/ssl_x509.cc',
                     'static bool ssl_crypto_x509_session_verify_cert_chain(SSL_SESSION *session,\n                                                      SSL_HANDSHAKE *hs,\n                                                      uint8_t *out_alert) {',
                     'static bool ssl_crypto_x509_session_verify_cert_chain(SSL_SESSION *session,\n                                                      SSL_HANDSHAKE *hs,\n                                                      uint8_t *out_alert) {return true;')
     replaceFileText('src/third_party/boringssl/src/ssl/ssl_x509.cc',
                     'static int ssl_crypto_x509_session_verify_cert_chain(SSL_SESSION *session,\n                                                      SSL_HANDSHAKE *hs,\n                                                      uint8_t *out_alert) {',
                     'static int ssl_crypto_x509_session_verify_cert_chain(SSL_SESSION *session,\n                                                      SSL_HANDSHAKE *hs,\n                                                      uint8_t *out_alert) {return 1;')
+    replaceFileText('src/third_party/boringssl/src/ssl/ssl_x509.cc',
+                    'static bool ssl_crypto_x509_session_verify_cert_chain(SSL_SESSION *session,\n                                                      SSL_HANDSHAKE *hs,\n                                                      uint8_t *out_alert) {',
+                    'static bool ssl_crypto_x509_session_verify_cert_chain(SSL_SESSION *session,\n                                                      SSL_HANDSHAKE *hs,\n                                                      uint8_t *out_alert) {\n  return true;')
 
     if ver == 26 or ver == 27:
         replaceFileText('tools/generate_package_config/pubspec.yaml', 'package_config: any', 'package_config: 1.9.3')
@@ -437,15 +439,6 @@ def extractZip(zipname):
         zipObject.close()
         replaceLibFlutter()
 
-def patch_ssl_x509():
-    try:
-        if not os.path.exists(SSL_X590):
-            urlretrieve(f"https://raw.githubusercontent.com/Impact-I/reFlutter/main/scripts/{SSL_X590}", SSL_X590)
-
-        with open(f"src/third_party/boringssl/src/ssl/{SSL_X590}", "w") as f:
-            f.write(open(SSL_X590).read())
-    except:
-        pass
 
 def main():
     global libappHash, patchDump
