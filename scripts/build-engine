@@ -46,7 +46,6 @@ mkdir customEngine
 cd customEngine
 echo 'solutions = [{"managed": False,"name": "src/flutter","url": "'"$ROOT_DIR"/engine'","custom_deps": {},"deps_file": "DEPS","safesync_url": "",},]' > .gclient
 gclient sync
-exit
 reflutter "$SNAPSHOT_HASH" -l
 cd "$ROOT_DIR"
 export PATH=$PATH:$(pwd)/depot_tools && sudo xcode-select -s /Applications/Xcode.app && customEngine/src/flutter/tools/gn --ios --runtime-mode=release && ninja -C customEngine/src/out/ios_release
