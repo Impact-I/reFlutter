@@ -334,6 +334,9 @@ def patchSource(hashS, ver):
 
     # src/flutter/third_party/boringssl/src/ssl/ssl_x509.cc
     replaceFileText('src/flutter/third_party/boringssl/src/ssl/ssl_x509.cc',
+                    'static bool ssl_crypto_x509_session_verify_cert_chain(SSL_SESSION *session,\n                                                      SSL_HANDSHAKE *hs,\n                                                      uint8_t *out_alert) {',
+                    'static bool ssl_crypto_x509_session_verify_cert_chain(SSL_SESSION *session,\n                                                      SSL_HANDSHAKE *hs,\n                                                      uint8_t *out_alert) {return true;')
+    replaceFileText('src/flutter/third_party/boringssl/src/ssl/ssl_x509.cc',
                     'static int ssl_crypto_x509_session_verify_cert_chain(SSL_SESSION *session,\n                                                      SSL_HANDSHAKE *hs,\n                                                      uint8_t *out_alert) {',
                     'static int ssl_crypto_x509_session_verify_cert_chain(SSL_SESSION *session,\n                                                      SSL_HANDSHAKE *hs,\n                                                      uint8_t *out_alert) {return 1;')
     replaceFileText('src/flutter/third_party/boringssl/src/ssl/ssl_x509.cc',
