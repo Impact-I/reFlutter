@@ -322,6 +322,11 @@ def replaceLibFlutter():
 
 
 def replaceFileText(fname, textOrig, textReplace):
+    if fname[:15] == 'src/third_party': # fix for new flutter source path
+        if not os.path.exists(fname):
+            new_third_party_path = 'src/flutter/' + '/'.join(fname.split('/')[1:])
+            if os.path.exists(new_third_party_path):
+                fname = new_third_party_path
     try:
         with open(fname, "r") as file:
             filedata = file.read()
@@ -477,24 +482,6 @@ def patchSource(hashS, ver):
         "static int ssl_crypto_x509_session_verify_cert_chain(SSL_SESSION *session,\n                                                      SSL_HANDSHAKE *hs,\n                                                      uint8_t *out_alert) {",
         "static int ssl_crypto_x509_session_verify_cert_chain(SSL_SESSION *session,\n                                                      SSL_HANDSHAKE *hs,\n                                                      uint8_t *out_alert) {return 1;",
     )
-    replaceFileText(
-        "src/third_party/boringssl/src/ssl/ssl_x509.cc",
-        "static bool ssl_crypto_x509_session_verify_cert_chain(SSL_SESSION *session,\n                                                      SSL_HANDSHAKE *hs,\n                                                      uint8_t *out_alert) {",
-        "static bool ssl_crypto_x509_session_verify_cert_chain(SSL_SESSION *session,\n                                                      SSL_HANDSHAKE *hs,\n                                                      uint8_t *out_alert) {\n  return true;",
-    )
-
-    # src/flutter/third_party/boringssl/src/ssl/ssl_x509.cc
-    replaceFileText(
-        "src/flutter/third_party/boringssl/src/ssl/ssl_x509.cc",
-        "static int ssl_crypto_x509_session_verify_cert_chain(SSL_SESSION *session,\n                                                      SSL_HANDSHAKE *hs,\n                                                      uint8_t *out_alert) {",
-        "static int ssl_crypto_x509_session_verify_cert_chain(SSL_SESSION *session,\n                                                      SSL_HANDSHAKE *hs,\n                                                      uint8_t *out_alert) {return 1;",
-    )
-    replaceFileText(
-        "src/flutter/third_party/boringssl/src/ssl/ssl_x509.cc",
-        "static bool ssl_crypto_x509_session_verify_cert_chain(SSL_SESSION *session,\n                                                      SSL_HANDSHAKE *hs,\n                                                      uint8_t *out_alert) {",
-        "static bool ssl_crypto_x509_session_verify_cert_chain(SSL_SESSION *session,\n                                                      SSL_HANDSHAKE *hs,\n                                                      uint8_t *out_alert) {\n  return true;",
-    )
-
 
     if ver == 26 or ver == 27:
         replaceFileText(
