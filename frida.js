@@ -1,4 +1,4 @@
-//frida -U -f <package> -l frida.js --no-pause
+//frida -U -f <package> -l frida.js
 
 function hookFunc() {
 
