@@ -486,11 +486,6 @@ def patchSource(hashS, ver):
     # src/flutter/third_party/boringssl/src/ssl/ssl_x509.cc
     replaceFileText(
         "src/flutter/third_party/boringssl/src/ssl/ssl_x509.cc",
-        "static bool ssl_crypto_x509_session_verify_cert_chain(SSL_SESSION *session,\n                                                      SSL_HANDSHAKE *hs,\n                                                      uint8_t *out_alert) {",
-        "static bool ssl_crypto_x509_session_verify_cert_chain(SSL_SESSION *session,\n                                                      SSL_HANDSHAKE *hs,\n                                                      uint8_t *out_alert) {return true;",
-    )
-    replaceFileText(
-        "src/flutter/third_party/boringssl/src/ssl/ssl_x509.cc",
         "static int ssl_crypto_x509_session_verify_cert_chain(SSL_SESSION *session,\n                                                      SSL_HANDSHAKE *hs,\n                                                      uint8_t *out_alert) {",
         "static int ssl_crypto_x509_session_verify_cert_chain(SSL_SESSION *session,\n                                                      SSL_HANDSHAKE *hs,\n                                                      uint8_t *out_alert) {return 1;",
     )
@@ -499,10 +494,6 @@ def patchSource(hashS, ver):
         "static bool ssl_crypto_x509_session_verify_cert_chain(SSL_SESSION *session,\n                                                      SSL_HANDSHAKE *hs,\n                                                      uint8_t *out_alert) {",
         "static bool ssl_crypto_x509_session_verify_cert_chain(SSL_SESSION *session,\n                                                      SSL_HANDSHAKE *hs,\n                                                      uint8_t *out_alert) {\n  return true;",
     )
-
-    # hard patch
-    if ver >= 57:
-        patch_ssl_x509()
 
 
     if ver == 26 or ver == 27:
@@ -696,6 +687,7 @@ def main():
                         os.path.exists("src/third_party/dart/runtime/vm/dart.cc")
                         or os.path.exists("tools/generate_package_config/pubspec.yaml")
                         or os.path.exists("DEPS")
+                        or os.path.exists("src/flutter/third_party/dart/runtime/vm/dart.cc")
                     ):
                         patchSource(libappHash, abs(i))
     except (IndexError, ValueError):
