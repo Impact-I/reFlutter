@@ -136,7 +136,7 @@ Next, you will need to pull the file from the device
 The resulting offset from the dump can be used in the frida [script](https://github.com/Impact-I/reFlutter/blob/main/frida.js)
 
 ```
-frida -U -f <package> -l frida.js --no-pause
+frida -U -f <package> -l frida.js
 ```
 
 To get value for `_kDartIsolateSnapshotInstructions` you can use `readelf -Ws libapp.so` Where is the value you need in the `Value` field
