@@ -132,6 +132,3 @@ def main():
             _patch_file(args.target)
         else:
             parser.print_usage()
-
-
-main()
