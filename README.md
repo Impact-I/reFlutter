@@ -2,7 +2,7 @@
 
 <p align="center"><img src="https://user-images.githubusercontent.com/87244850/135659542-22bb8496-bf26-4e25-b7c1-ffd8fc0cea10.png" width="75%"/></p>
 
-**Read more on the blog:** https://swarm.ptsecurity.com/fork-bomb-for-flutter/
+**Read more on the blog:** <https://swarm.ptsecurity.com/fork-bomb-for-flutter/>
 
 This framework helps with Flutter apps reverse engineering using the patched version of the Flutter library which is already compiled and ready for app repacking. This library has snapshot deserialization process modified to allow you perform dynamic analysis in a convenient way.
 
@@ -54,6 +54,7 @@ You need to specify the IP of your Burp Suite Proxy Server located in the same n
 - Add port: `8083`
 - Bind to address: `All interfaces`
 - Request handling: Support invisible proxying = `True`
+
 <p align="center"><img src="https://user-images.githubusercontent.com/87244850/135753172-20489ef9-0759-432f-b2fa-220607e896b8.png" width="84%"/></p>
 
 You don't need to install any certificates. On an Android device, you don't need root access as well. reFlutter also allows to bypass some of the flutter certificate pinning implementations.
@@ -185,6 +186,7 @@ docker run -it -v "$(pwd):/t" -e HASH_PATCH=aa64af18e7d086041ac127cc4bc50c5e -e 
 # Linux, Windows
 
 EXAMPLE BUILD ANDROID ARM64:
+
 ```bash
 docker run -e WAIT=300 -e x64=0 -e arm=0 -e HASH_PATCH=<Snapshot_Hash> -e COMMIT=<Engine_commit> --rm -iv${PWD}:/t reflutter
 ```

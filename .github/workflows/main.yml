@@ -36,7 +36,7 @@ jobs:
           git config --global user.email "reflutter@example.com" && git config --global user.name "reflutter"
           git fetch origin $(reflutter ${{env.SNAPSHOT_HASH}} -l)
           git reset --hard FETCH_HEAD
-          reflutter ${{env.SNAPSHOT_HASH}} -l
+          reflutter -b ${{env.SNAPSHOT_HASH}}
           echo 'reflutter' > REFLUTTER
           git add . && git commit -am "reflutter"
           cd $ROOT_DIR
@@ -44,7 +44,7 @@ jobs:
           cd customEngine
           echo 'solutions = [{"managed": False,"name": "src/flutter","url": "'$ROOT_DIR/engine'","custom_deps": {},"deps_file": "DEPS","safesync_url": "",},]' > .gclient
           gclient sync
-          reflutter ${{env.SNAPSHOT_HASH}} -l
+          reflutter -b ${{env.SNAPSHOT_HASH}}
       - name: ninja build Flutter.framework
         run: export PATH=$PATH:`pwd`/depot_tools && sudo xcode-select -s /Applications/Xcode.app && customEngine/src/flutter/tools/gn --no-goma --ios --runtime-mode=release && ninja -C customEngine/src/out/ios_release
       - name: ninja build libflutter_arm64
@@ -99,7 +99,7 @@ jobs:
           git config --global user.email "reflutter@example.com" && git config --global user.name "reflutter"
           git fetch origin $(reflutter ${{env.SNAPSHOT_HASH}} -l)
           git reset --hard FETCH_HEAD
-          reflutter ${{env.SNAPSHOT_HASH}} -l patchDump
+          reflutter -b ${{env.SNAPSHOT_HASH}} -p
           echo 'reflutter' > REFLUTTER
           git add . && git commit -am "reflutter"
           cd $ROOT_DIR
@@ -107,7 +107,7 @@ jobs:
           cd customEngine
           echo 'solutions = [{"managed": False,"name": "src/flutter","url": "'$ROOT_DIR/engine'","custom_deps": {},"deps_file": "DEPS","safesync_url": "",},]' > .gclient
           gclient sync
-          reflutter ${{env.SNAPSHOT_HASH}} -l patchDump
+          reflutter -b ${{env.SNAPSHOT_HASH}} -p
       - name: ninja build Flutter.framework
         run: export PATH=$PATH:`pwd`/depot_tools && sudo xcode-select -s /Applications/Xcode.app && customEngine/src/flutter/tools/gn --no-goma --ios --runtime-mode=release && ninja -C customEngine/src/out/ios_release
       - name: ninja build libflutter_arm64
@@ -131,4 +131,3 @@ jobs:
           tag_name: android-v3-${{env.SNAPSHOT_HASH}}
           files: |
             ./*.so
-

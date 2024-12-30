@@ -10,7 +10,7 @@ import sys
 
 
 def usage():
-    print('[-] Usage: python {} [libapp.so]'.format(sys.argv[0]))
+    print("[-] Usage: python {} [libapp.so]".format(sys.argv[0]))
     sys.exit(1)
 
 
@@ -19,10 +19,7 @@ if len(sys.argv) != 2:
 
 file_name = sys.argv[1]
 min_hash_length = 32
-if sys.version_info >= (3, 0):
-    f = open(file_name, errors="ignore")
-else:
-    f = open(file_name, 'rb')
+f = open(file_name, errors="ignore")
 
 lib_app_hash = ""
 result = ""
