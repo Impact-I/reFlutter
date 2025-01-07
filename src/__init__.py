@@ -3,7 +3,7 @@
 import argparse
 import os
 import csv
-import utils
+from . import utils
 from urllib.request import urlretrieve
 from zipfile import ZipFile
 from os.path import join
