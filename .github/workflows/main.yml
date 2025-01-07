@@ -32,7 +32,7 @@ jobs:
           export PATH=$PATH:$ROOT_DIR/depot_tools
           cd engine
           git config --global user.email "reflutter@example.com" && git config --global user.name "reflutter"
-          git fetch origin $(reflutter ${{env.SNAPSHOT_HASH}} -l)
+          git fetch origin $(reflutter ${{env.SNAPSHOT_HASH}} -b)
           git reset --hard FETCH_HEAD
           reflutter -b ${{env.SNAPSHOT_HASH}}
           echo 'reflutter' > REFLUTTER
@@ -93,7 +93,7 @@ jobs:
           export PATH=$PATH:$ROOT_DIR/depot_tools
           cd engine
           git config --global user.email "reflutter@example.com" && git config --global user.name "reflutter"
-          git fetch origin $(reflutter ${{env.SNAPSHOT_HASH}} -l)
+          git fetch origin $(reflutter ${{env.SNAPSHOT_HASH}} -b)
           git reset --hard FETCH_HEAD
           reflutter -b ${{env.SNAPSHOT_HASH}} -p
           echo 'reflutter' > REFLUTTER
