@@ -9,6 +9,8 @@ import zipfile
 import string
 import re
 
+OLD_SOCKET_PATCH_LAST_VERSION = 58
+
 
 def replace_file_text(fname, textOrig, textReplace):
     if fname[:15] == "src/third_party":  # fix for new flutter source path
@@ -63,7 +65,7 @@ def zip_dir(path: str, ziph: zipfile.ZipFile, zip_stored: bool):
                 )
 
 
-def check_libapp_hash(libapp_hash: str):
+def check_libapp_hash(libapp_hash: str) -> int | None:
     if libapp_hash == "":
         print(
             "\nIs this really a Flutter app? \nThere was no libapp.so (Android) or App (iOS) found in the package.\n\n Make sure there is arm64-v8a/libapp.so or App.framework/App file in the package. If flutter library name differs you need to rename it properly before patching.\n"
@@ -84,6 +86,14 @@ def check_libapp_hash(libapp_hash: str):
             + "\n\n This engine is currently not supported.\n Most likely this flutter application uses the Debug version engine which you need to build manually using Docker at the moment.\n More details: https://github.com/Impact-I/reFlutter\n"
         )
         sys.exit()
+
+    resp = resp.splitlines()
+    _index = 0
+    for _ in resp:
+        _index += 1
+        if libapp_hash in _:
+            break
+    return len(resp) + 1 - _index
 
 
 def elff(fname: str) -> str:
@@ -122,7 +132,7 @@ def replace_flutter_lib(
     zip_stored: bool,
     patch_dump: bool,
 ):
-    check_libapp_hash(libapp_hash)
+    flutter_version_index = check_libapp_hash(libapp_hash)
     get_network_lib(
         libapp_arm64,
         libapp_arm,
@@ -186,15 +196,34 @@ def replace_flutter_lib(
         print("\nSnapshotHash: " + libapp_hash)
         if len(libapp_ios[1]) != 0:
             shutil.move("release.RE.zip", "release.RE.ipa")
-            print(
-                "The resulting ipa file: ./release.RE.ipa\nPlease install the ipa file\n\nConfigure Burp Suite proxy server to listen on *:8083\nProxy Tab -> Options -> Proxy Listeners -> Edit -> Binding Tab\n\nThen enable invisible proxying in Request Handling Tab\nSupport Invisible Proxying -> true\n"
-            )
+            if (
+                flutter_version_index is not None
+                and flutter_version_index > OLD_SOCKET_PATCH_LAST_VERSION
+            ):
+                print(
+                    "The resulting ipa file: ./release.RE.ipa\nPlease install the ipa file\n\nConfigure Potatso (iOS) to use your Burp Suite proxy server\n"
+                )
+            else:
+                print(
+                    "The resulting ipa file: ./release.RE.ipa\nPlease install the ipa file\n\nConfigure Burp Suite proxy server to listen on *:8083\nProxy Tab -> Options -> Proxy Listeners -> Edit -> Binding Tab\n\nThen enable invisible proxying in Request Handling Tab\nSupport Invisible Proxying -> true\n"
+                )
         else:
             shutil.move("release.RE.zip", "release.RE.apk")
             print("The resulting apk file: ./release.RE.apk")
-            print(
-                "Please sign,align the apk file\n\nConfigure Burp Suite proxy server to listen on *:8083\nProxy Tab -> Options -> Proxy Listeners -> Edit -> Binding Tab\n\nThen enable invisible proxying in Request Handling Tab\nSupport Invisible Proxying -> true\n"
-            )
+            if (
+                flutter_version_index is not None
+                and flutter_version_index > OLD_SOCKET_PATCH_LAST_VERSION
+            ):
+                print(
+                    "The resulting ipa file: ./release.RE.ipa\nPlease install the ipa file\n\nConfigure Potatso (iOS) to use your Burp Suite proxy server\n"
+                )
+                print(
+                    "Please sign,align the apk file\n\nConfigure TunProxy (Android) to use your Burp Suite proxy server\n"
+                )
+            else:
+                print(
+                    "Please sign,align the apk file\n\nConfigure Burp Suite proxy server to listen on *:8083\nProxy Tab -> Options -> Proxy Listeners -> Edit -> Binding Tab\n\nThen enable invisible proxying in Request Handling Tab\nSupport Invisible Proxying -> true\n"
+                )
         sys.exit()
 
 
