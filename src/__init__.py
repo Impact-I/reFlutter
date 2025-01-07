@@ -73,13 +73,13 @@ def _build_engine(libapp_hash: str):
     global patch_dump
     if not os.path.exists("enginehash.csv"):
         urlretrieve(
-            "https://raw.githubusercontent.com/impact-i/reflutter/main/enginehash.csv",
+            "https://raw.githubusercontent.com/Impact-I/reFlutter/main/enginehash.csv",
             "enginehash.csv",
         )
 
     with open("enginehash.csv") as f_obj:
         utils.replace_file_text(
-            "src/src/flutter/build.gn",
+            "src/src/flutter/BUILD.gn",
             '  if (is_android) {\n    public_deps +=\n        [ "//flutter/shell/platform/android:flutter_shell_native_unittests" ]\n  }',
             "",
         )
@@ -90,8 +90,8 @@ def _build_engine(libapp_hash: str):
         i = -row_count
         for line in reader:
             i = i + 1
-            if libapp_hash in line["snapshot_hash"]:
-                print(line["engine_commit"])
+            if libapp_hash in line["Snapshot_Hash"]:
+                print(line["Engine_commit"])
                 if (
                     os.path.exists("src/third_party/dart/runtime/vm/dart.cc")
                     or os.path.exists("tools/generate_package_config/pubspec.yaml")
