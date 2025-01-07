@@ -3,7 +3,12 @@
 import argparse
 import os
 import csv
-from . import utils
+
+try:
+    from . import utils
+except Exception:
+    import utils
+
 from urllib.request import urlretrieve
 from zipfile import ZipFile
 from os.path import join

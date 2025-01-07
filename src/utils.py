@@ -122,6 +122,65 @@ def not_except(filename: str):
         pass
 
 
+def convert_ip_fix(IPBurp: str):
+    intoct = list(IPBurp.split("."))
+    finallistIP = list(IPBurp.split("."))
+    intoct.sort(key=lambda s: len(s))
+    intoct.reverse()
+    for i in intoct:
+        if (
+            len(i) != 3 and int(i) > 7 and int(i) > 63 and len(".".join(intoct)) < 15
+        ):  # 64-99
+            intoct[intoct.index(i)] = str(oct(int(i))).replace("o", "")
+        elif len(i) != 3 and 7 < int(i) < 64 and len(".".join(intoct)) < 15:  # 8-63
+            intoct[intoct.index(i)] = str(oct(int(i))).replace("o", "")
+        elif len(i) < 3 and int(i) < 8 and len(".".join(intoct)) < 15:  # 0-7
+            intoct[intoct.index(i)] = intoct[intoct.index(i)].zfill(3)
+    for i in intoct:
+        if i.startswith("0"):
+            if len(i) != 3 and int(i, 8) > 7 and len(".".join(intoct)) > 15:  # 8-63
+                intoct[intoct.index(i)] = str(int(i, 8)).replace("o", "")
+            elif len(i) < 3 and int(i) < 8 and len(".".join(intoct)) < 15:  # 0-7
+                intoct[intoct.index(i)] = intoct[intoct.index(i)].zfill(3)
+        elif (
+            len(i) == 3 and int(i) > 7 and int(i) > 99 and len(".".join(intoct)) > 15
+        ):  # 64-99
+            intoct[intoct.index(i)] = str(oct(int(i))).replace("o", "")
+    for i in intoct:
+        nn = intoct.index(i)
+        if i.startswith("0"):
+            if len(i) > 2 and int(i) > 7 and len(".".join(intoct)) > 15:  # 8-63
+                intoct[nn] = str(int(i, 8)).replace("o", "")
+        elif (
+            len(i) != 3 and int(i) > 7 and int(i) > 63 and len(".".join(intoct)) < 15
+        ):  # 0-7
+            intoct[nn] = str(oct(int(i))).replace("o", "")
+    for i in intoct:
+        if len(i) < 3 and int(i) < 8 and len(".".join(intoct)) < 15:
+            intoct[intoct.index(i)] = str(int(i)).zfill(2)
+    for f in finallistIP:
+        for i in intoct:
+            if i.startswith("0"):
+                if f == str(int(i, 8)):
+                    mi = finallistIP.index(f)
+                    finallistIP[mi] = i.replace("o", "")
+                    if len(".".join(finallistIP)) > 15:
+                        finallistIP[mi] = str(int(i, 8)).replace("o", "")
+    if len(".".join(finallistIP)) < 15:
+        for f in finallistIP:
+            if len(f) < 3 and int(f) < 8:
+                finallistIP[finallistIP.index(f)] = str(int(f)).zfill(2)
+    return ".".join(finallistIP)
+
+
+def input_burp_ip() -> str:
+    burp_ip = input("\nExample: (192.168.1.154) etc.\nPlease enter your BurpSuite IP: ")
+    if not re.match(r"[0-9]+(?:\.[0-9]+){3}", burp_ip):
+        print("Invalid IP Address")
+        input_burp_ip()
+    return convert_ip_fix(burp_ip)
+
+
 def replace_flutter_lib(
     libapp_hash: str,
     libapp_arm64: tuple,
@@ -133,6 +192,13 @@ def replace_flutter_lib(
     patch_dump: bool,
 ):
     flutter_version_index = check_libapp_hash(libapp_hash)
+
+    burp_ip = None
+    if (
+        flutter_version_index is not None
+        and flutter_version_index <= OLD_SOCKET_PATCH_LAST_VERSION
+    ):
+        burp_ip = input_burp_ip()
     get_network_lib(
         libapp_arm64,
         libapp_arm,
@@ -140,6 +206,7 @@ def replace_flutter_lib(
         libapp_x86,
         libapp_ios,
         patch_dump,
+        burp_ip,
     )
     if (
         os.path.exists("libflutter_arm64.so")
@@ -222,7 +289,7 @@ def replace_flutter_lib(
                 )
             else:
                 print(
-                    "Please sign,align the apk file\n\nConfigure Burp Suite proxy server to listen on *:8083\nProxy Tab -> Options -> Proxy Listeners -> Edit -> Binding Tab\n\nThen enable invisible proxying in Request Handling Tab\nSupport Invisible Proxying -> true\n"
+                    "Please sign & align the apk file\n\nConfigure Burp Suite proxy server to listen on *:8083\nProxy Tab -> Options -> Proxy Listeners -> Edit -> Binding Tab\n\nThen enable invisible proxying in Request Handling Tab\nSupport Invisible Proxying -> true\n"
                 )
         sys.exit()
 
@@ -234,6 +301,7 @@ def get_network_lib(
     libapp_x86: tuple,
     libapp_ios: tuple,
     patch_dump: bool,
+    burp_ip: str | None,
 ):
     verUrl = "v2-"
     if patch_dump:
@@ -298,6 +366,56 @@ def get_network_lib(
         except Exception:
             libapp_x86 = "", ""
             not_except("libflutter_x86.so")
+
+    if burp_ip is not None:
+        patch_library(
+            libapp_arm64, libapp_arm, libapp_x64, libapp_x86, libapp_ios, burp_ip
+        )
+
+
+def patch_library(
+    libapp_arm64: tuple,
+    libapp_arm: tuple,
+    libapp_x64: tuple,
+    libapp_x86: tuple,
+    libapp_ios: tuple,
+    burp_ip: str,
+):
+    if len(libapp_ios[1]) != 0:
+        buffer = (
+            open("Flutter", "rb")
+            .read()
+            .replace(b"192.168.133.104", burp_ip.encode("ascii"))
+        )
+        open("Flutter", "wb").write(buffer)
+    if len(libapp_arm64[1]) != 0:
+        buffer = (
+            open("libflutter_arm64.so", "rb")
+            .read()
+            .replace(b"192.168.133.104", burp_ip.encode("ascii"))
+        )
+        open("libflutter_arm64.so", "wb").write(buffer)
+    if len(libapp_arm[1]) != 0:
+        buffer = (
+            open("libflutter_arm.so", "rb")
+            .read()
+            .replace(b"192.168.133.104", burp_ip.encode("ascii"))
+        )
+        open("libflutter_arm.so", "wb").write(buffer)
+    if len(libapp_x64[1]) != 0:
+        buffer = (
+            open("libflutter_x64.so", "rb")
+            .read()
+            .replace(b"192.168.133.104", burp_ip.encode("ascii"))
+        )
+        open("libflutter_x64.so", "wb").write(buffer)
+    if len(libapp_x86[1]) != 0:
+        buffer = (
+            open("libflutter_x86.so", "rb")
+            .read()
+            .replace(b"192.168.133.104", burp_ip.encode("ascii"))
+        )
+        open("libflutter_x86.so", "wb").write(buffer)
 
 
 def patch_source(libapp_hash: str, ver: int, patch_dump: bool):

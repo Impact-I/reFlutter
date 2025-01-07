@@ -24,7 +24,7 @@ Key features:
 
 ```
 # Linux, Windows, MacOS
-pip3 install reflutter==0.8.1
+pip3 install reflutter==0.8.2
 ```
 
 ### Usage
