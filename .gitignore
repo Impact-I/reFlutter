@@ -21,3 +21,4 @@ flutter/
 reflutter.egg-info/
 goma/
 .venv/
+*.idsig
