@@ -7,7 +7,7 @@ on:
 
 jobs:
   build-v2:
-    runs-on: macos-12
+    runs-on: macos-13
     steps:
       - name: Check out repository
         uses: actions/checkout@v2
@@ -21,9 +21,7 @@ jobs:
           echo "SNAPSHOT_HASH=$HASH" >> $GITHUB_ENV
       - name: Install tools
         run: |
-          brew install ninja libusbmuxd ideviceinstaller ios-deploy python@3.11
-          sudo rm -rf /usr/local/bin/python3
-          sudo ln -s /Library/Frameworks/Python.framework/Versions/3.11/bin/python3 /usr/local/bin/python3
+          brew install ninja libusbmuxd ideviceinstaller ios-deploy
           python3 -m pip install wheel
           python3 -m pip install .
           git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git
@@ -31,12 +29,12 @@ jobs:
       - name: gclient sync
         run: |
           ROOT_DIR=`pwd`
-          export PATH=$PATH:$ROOT_DIR/depot_tools:/Library/Frameworks/Python.framework/Versions/3.11/bin
+          export PATH=$PATH:$ROOT_DIR/depot_tools
           cd engine
           git config --global user.email "reflutter@example.com" && git config --global user.name "reflutter"
-          git fetch origin $(reflutter ${{env.SNAPSHOT_HASH}} -l)
+          git fetch origin $(reflutter -b ${{env.SNAPSHOT_HASH}})
           git reset --hard FETCH_HEAD
-          reflutter ${{env.SNAPSHOT_HASH}} -l
+          reflutter -b ${{env.SNAPSHOT_HASH}}
           echo 'reflutter' > REFLUTTER
           git add . && git commit -am "reflutter"
           cd $ROOT_DIR
@@ -44,7 +42,7 @@ jobs:
           cd customEngine
           echo 'solutions = [{"managed": False,"name": "src/flutter","url": "'$ROOT_DIR/engine'","custom_deps": {},"deps_file": "DEPS","safesync_url": "",},]' > .gclient
           gclient sync
-          reflutter ${{env.SNAPSHOT_HASH}} -l
+          reflutter -b ${{env.SNAPSHOT_HASH}}
       - name: ninja build Flutter.framework
         run: export PATH=$PATH:`pwd`/depot_tools && sudo xcode-select -s /Applications/Xcode.app && customEngine/src/flutter/tools/gn --no-goma --ios --runtime-mode=release && ninja -C customEngine/src/out/ios_release
       - name: ninja build libflutter_arm64
@@ -70,7 +68,7 @@ jobs:
             ./*.so
 
   build-v3:
-    runs-on: macos-12
+    runs-on: macos-13
     steps:
       - name: Check out repository
         uses: actions/checkout@v2
@@ -84,9 +82,7 @@ jobs:
           echo "SNAPSHOT_HASH=$HASH" >> $GITHUB_ENV
       - name: Install tools
         run: |
-          brew install ninja libusbmuxd ideviceinstaller ios-deploy python@3.11
-          sudo rm -rf /usr/local/bin/python3
-          sudo ln -s /Library/Frameworks/Python.framework/Versions/3.11/bin/python3 /usr/local/bin/python3
+          brew install ninja libusbmuxd ideviceinstaller ios-deploy
           python3 -m pip install wheel
           python3 -m pip install .
           git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git
@@ -94,12 +90,12 @@ jobs:
       - name: gclient sync
         run: |
           ROOT_DIR=`pwd`
-          export PATH=$PATH:$ROOT_DIR/depot_tools:/Library/Frameworks/Python.framework/Versions/3.11/bin
+          export PATH=$PATH:$ROOT_DIR/depot_tools
           cd engine
           git config --global user.email "reflutter@example.com" && git config --global user.name "reflutter"
-          git fetch origin $(reflutter ${{env.SNAPSHOT_HASH}} -l)
+          git fetch origin $(reflutter -b ${{env.SNAPSHOT_HASH}})
           git reset --hard FETCH_HEAD
-          reflutter ${{env.SNAPSHOT_HASH}} -l patchDump
+          reflutter -b ${{env.SNAPSHOT_HASH}} -p
           echo 'reflutter' > REFLUTTER
           git add . && git commit -am "reflutter"
           cd $ROOT_DIR
@@ -107,7 +103,7 @@ jobs:
           cd customEngine
           echo 'solutions = [{"managed": False,"name": "src/flutter","url": "'$ROOT_DIR/engine'","custom_deps": {},"deps_file": "DEPS","safesync_url": "",},]' > .gclient
           gclient sync
-          reflutter ${{env.SNAPSHOT_HASH}} -l patchDump
+          reflutter -b ${{env.SNAPSHOT_HASH}} -p
       - name: ninja build Flutter.framework
         run: export PATH=$PATH:`pwd`/depot_tools && sudo xcode-select -s /Applications/Xcode.app && customEngine/src/flutter/tools/gn --no-goma --ios --runtime-mode=release && ninja -C customEngine/src/out/ios_release
       - name: ninja build libflutter_arm64
@@ -131,4 +127,3 @@ jobs:
           tag_name: android-v3-${{env.SNAPSHOT_HASH}}
           files: |
             ./*.so
-
