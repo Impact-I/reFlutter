@@ -19,24 +19,22 @@ cd ..
 pip3 install wheel
 pip3 install .
 cd "$ROOT_DIR"
-if [ -d "depot_tools" ];then
+if [ -d "depot_tools" ]; then
   rm -rf depot_tools
 fi
 git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git
 
-
-if [ -d "engine" ];then
+if [ -d "engine" ]; then
   rm -rf engine
 fi
 git clone https://github.com/flutter/engine.git
-
 
 export PATH=$PATH:$ROOT_DIR/depot_tools
 cd engine
 git fetch origin $(reflutter "$SNAPSHOT_HASH" -l)
 git reset --hard FETCH_HEAD
 reflutter "$SNAPSHOT_HASH" -l
-echo 'reflutter' > REFLUTTER
+echo 'reflutter' >REFLUTTER
 git add . && git commit -am "reflutter"
 cd "$ROOT_DIR"
 if [ -d "customEngine" ]; then
@@ -44,12 +42,12 @@ if [ -d "customEngine" ]; then
 fi
 mkdir customEngine
 cd customEngine
-echo 'solutions = [{"managed": False,"name": "src/flutter","url": "'"$ROOT_DIR"/engine'","custom_deps": {},"deps_file": "DEPS","safesync_url": "",},]' > .gclient
+echo 'solutions = [{"managed": False,"name": "src/flutter","url": "'"$ROOT_DIR"/engine'","custom_deps": {},"deps_file": "DEPS","safesync_url": "",},]' >.gclient
 gclient sync
 reflutter "$SNAPSHOT_HASH" -l
 cd "$ROOT_DIR"
 export PATH=$PATH:$(pwd)/depot_tools && sudo xcode-select -s /Applications/Xcode.app && customEngine/src/flutter/tools/gn --ios --runtime-mode=release && ninja -C customEngine/src/out/ios_release
- cp customEngine/src/out/ios_release/Flutter.framework/Flutter Flutter
+cp customEngine/src/out/ios_release/Flutter.framework/Flutter Flutter
 cd "$ROOT_DIR"
 export PATH=$PATH:$(pwd)/depot_tools && customEngine/src/flutter/tools/gn --no-goma --android --android-cpu=arm64 --runtime-mode=release && ninja -C customEngine/src/out/android_release_arm64
 cd "$ROOT_DIR"
