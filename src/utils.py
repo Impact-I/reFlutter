@@ -263,16 +263,17 @@ def replace_flutter_lib(
         print("\nSnapshotHash: " + libapp_hash)
         if len(libapp_ios[1]) != 0:
             shutil.move("release.RE.zip", "release.RE.ipa")
+            print("The resulting ipa file: ./release.RE.ipa")
             if (
                 flutter_version_index is not None
                 and flutter_version_index > OLD_SOCKET_PATCH_LAST_VERSION
             ):
                 print(
-                    "The resulting ipa file: ./release.RE.ipa\nPlease install the ipa file\n\nConfigure Potatso (iOS) to use your Burp Suite proxy server\n"
+                    "Please sign & install the ipa file.\n\nConfigure Potatso (iOS) to use your Burp Suite proxy server.\n"
                 )
             else:
                 print(
-                    "The resulting ipa file: ./release.RE.ipa\nPlease install the ipa file\n\nConfigure Burp Suite proxy server to listen on *:8083\nProxy Tab -> Options -> Proxy Listeners -> Edit -> Binding Tab\n\nThen enable invisible proxying in Request Handling Tab\nSupport Invisible Proxying -> true\n"
+                    "Please sign & install the ipa file\n\nConfigure Burp Suite proxy server to listen on *:8083\nProxy Tab -> Options -> Proxy Listeners -> Edit -> Binding Tab\n\nThen enable invisible proxying in Request Handling Tab\nSupport Invisible Proxying -> true\n"
                 )
         else:
             shutil.move("release.RE.zip", "release.RE.apk")
@@ -282,14 +283,11 @@ def replace_flutter_lib(
                 and flutter_version_index > OLD_SOCKET_PATCH_LAST_VERSION
             ):
                 print(
-                    "The resulting ipa file: ./release.RE.ipa\nPlease install the ipa file\n\nConfigure Potatso (iOS) to use your Burp Suite proxy server\n"
-                )
-                print(
-                    "Please sign,align the apk file\n\nConfigure TunProxy (Android) to use your Burp Suite proxy server\n"
+                    "Please sign, align & install the apk file.\n\nConfigure TunProxy (Android) to use your Burp Suite proxy server.\n"
                 )
             else:
                 print(
-                    "Please sign & align the apk file\n\nConfigure Burp Suite proxy server to listen on *:8083\nProxy Tab -> Options -> Proxy Listeners -> Edit -> Binding Tab\n\nThen enable invisible proxying in Request Handling Tab\nSupport Invisible Proxying -> true\n"
+                    "Please sign, align & install the apk file\n\nConfigure Burp Suite proxy server to listen on *:8083\nProxy Tab -> Options -> Proxy Listeners -> Edit -> Binding Tab\n\nThen enable invisible proxying in Request Handling Tab\nSupport Invisible Proxying -> true\n"
                 )
         sys.exit()
 
