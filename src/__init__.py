@@ -17,6 +17,7 @@ import zipfile
 # inits
 patch_dump = False
 build_engine = False
+restore_patch = False
 
 
 def _patch_file(file_name: str):
@@ -75,7 +76,7 @@ def _patch_file(file_name: str):
 
 
 def _build_engine(libapp_hash: str):
-    global patch_dump
+    global patch_dump, restore_patch
     if not os.path.exists("enginehash.csv"):
         urlretrieve(
             "https://raw.githubusercontent.com/Impact-I/reFlutter/main/enginehash.csv",
@@ -103,11 +104,11 @@ def _build_engine(libapp_hash: str):
                     or os.path.exists("deps")
                     or os.path.exists("src/flutter/third_party/dart/runtime/vm/dart.cc")
                 ):
-                    utils.patch_source(libapp_hash, abs(i), patch_dump)
+                    utils.patch_source(libapp_hash, abs(i), patch_dump, restore_patch)
 
 
 def main():
-    global patch_dump, build_engine
+    global patch_dump, build_engine, restore_patch
     parser = argparse.ArgumentParser(description="reflutter")
     parser.add_argument(
         "-b",
@@ -121,6 +122,13 @@ def main():
         default=False,
         help="Enable patch dump",
     )
+    parser.add_argument(
+        "-r",
+        "--restore_patch",
+        action="store_true",
+        default=False,
+        help="Enable restore patch",
+    )
     parser.add_argument("target", nargs="?", help="APK or IPA file")
 
     args = parser.parse_args()
@@ -129,6 +137,9 @@ def main():
 
     if args.patch_dump:
         patch_dump = True
+
+    if args.restore_patch:
+        restore_patch = True
 
     if build_engine:
         _build_engine(args.build_engine)

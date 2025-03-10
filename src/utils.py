@@ -5,25 +5,76 @@ import shutil
 import sys
 from urllib.request import urlopen, urlretrieve
 from os.path import join
+from pathlib import Path
+from git import Repo, InvalidGitRepositoryError
 import zipfile
 import string
 import re
 
 OLD_SOCKET_PATCH_LAST_VERSION = 58
 
-
+replace_map = {}
 def replace_file_text(fname, textOrig, textReplace):
+    global replace_map
     if fname[:15] == "src/third_party":  # fix for new flutter source path
         if not os.path.exists(fname):
             new_third_party_path = "src/flutter/" + "/".join(fname.split("/")[1:])
             if os.path.exists(new_third_party_path):
                 fname = new_third_party_path
+    if fname not in replace_map:
+        replace_map[fname] = []
+    replace_map[fname].append([textOrig, textReplace])
+
+def commit_replace(restore_patch: bool):
+    global replace_map
+    for fname in replace_map.keys():
+        if restore_patch:
+            restore_file(fname)
+        replace_list = replace_map[fname]   
+        try:
+            with open(fname, "r") as file:
+                filedata = file.read()
+                for textOrig, textReplace in replace_list:
+                    filedata = filedata.replace(textOrig, textReplace)
+                with open(fname, "w") as file:
+                    file.write(filedata)
+        except (IOError, OSError):
+            pass
+
+# Restore a file in a Git repository by its relative path.
+def restore_file(fname):
     try:
-        with open(fname, "r") as file:
-            filedata = file.read()
-            filedata = filedata.replace(textOrig, textReplace)
-        with open(fname, "w") as file:
-            file.write(filedata)
+        # Convert to absolute path and check if the file exists
+        file_path = Path(fname).resolve()
+        if not file_path.exists():
+            return
+
+        # Find the Git repository containing the file
+        repo = None
+        current_dir = file_path.parent
+        
+        while True:
+            try:
+                # Attempt to load the Git repository
+                repo = Repo(current_dir, search_parent_directories=True)
+                break
+            except InvalidGitRepositoryError:
+                # Stop if the root of the filesystem is reached
+                if current_dir == current_dir.parent:
+                    return
+                current_dir = current_dir.parent
+
+        # Get the relative path of the file within the repository
+        repo_root = Path(repo.working_dir)
+        try:
+            relative_path = file_path.relative_to(repo_root)
+        except ValueError:
+            return
+
+        # Perform the restore operation (equivalent to `git restore`)
+        repo.git.checkout('HEAD', '--', str(relative_path))
+        print(f"Successfully restored file: {relative_path} (Repository: {repo_root})")
+
     except (IOError, OSError):
         pass
 
@@ -416,7 +467,7 @@ def patch_library(
         open("libflutter_x86.so", "wb").write(buffer)
 
 
-def patch_source(libapp_hash: str, ver: int, patch_dump: bool):
+def patch_source(libapp_hash: str, ver: int, patch_dump: bool, restore_patch: bool):
     try:
         os.makedirs(os.path.join(os.environ["HOME"], "Documents"))
     except Exception:
@@ -611,3 +662,4 @@ def patch_source(libapp_hash: str, ver: int, patch_dump: bool):
             "   'src/third_party/dart/pkg/analysis_server/language_model': {\n     'packages': [\n       {\n        'package': 'dart/language_model',\n        'version': 'gABkW8D_-f45it57vQ_ZTKFwev16RcCjvrdTCytEnQgC',\n       }\n     ],\n     'dep_type': 'cipd',\n   },\n",
             "",
         )
+    commit_replace(restore_patch)
