@@ -100,8 +100,11 @@ def elff(fname: str) -> str:
     libapp_hash = ""
     f = open(fname, "rb")
     fb = f.read()
-    libapp_hash = re.search(rb"[a-f\d]{32}", fb).group()
-    return libapp_hash.decode()
+    res = re.search(rb"[a-f\d]{32}", fb)
+    if res:
+        libapp_hash = res.group()
+        return libapp_hash.decode()
+    return ""
 
 
 def not_except(filename: str):
