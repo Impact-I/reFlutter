@@ -98,21 +98,10 @@ def check_libapp_hash(libapp_hash: str) -> int | None:
 
 def elff(fname: str) -> str:
     libapp_hash = ""
-    min = 32
-    f = open(fname, errors="ignore")
-    result = ""
-    for c in f.read():
-        if c in string.printable:
-            result += c
-            continue
-        if len(result) >= min:
-            hashT = re.findall(r"([a-f\d]{32})", result)
-            if len(hashT) > 0:
-                f.close()
-                libapp_hash = hashT[0]
-                return libapp_hash
-        result = ""
-    return libapp_hash
+    f = open(fname, "rb")
+    fb = f.read()
+    libapp_hash = re.search(rb"[a-f\d]{32}", fb).group()
+    return libapp_hash.decode()
 
 
 def not_except(filename: str):
