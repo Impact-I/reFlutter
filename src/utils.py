@@ -18,6 +18,9 @@ def replace_file_text(fname, textOrig, textReplace):
             new_third_party_path = "src/flutter/" + "/".join(fname.split("/")[1:])
             if os.path.exists(new_third_party_path):
                 fname = new_third_party_path
+            else:
+                # https://github.com/flutter/flutter/tree/master/engine
+                fname = "engine/src/flutter/" + "/".join(fname.split("/")[1:])
     try:
         with open(fname, "r") as file:
             filedata = file.read()
