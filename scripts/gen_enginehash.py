@@ -9,7 +9,7 @@ from zipfile import ZipFile
 
 from requests import get
 
-from src import ELFF
+from src.utils import elff as ELFF
 
 release_url = (
     "https://storage.googleapis.com/flutter_infra_release/releases/releases_linux.json"
@@ -36,7 +36,6 @@ def get_snapshot_hash(engine_hash: str) -> str | None:
         engine_hash_path = "/tmp/{}".format(engine_hash)
         urlretrieve(snapshot_url.format(engine_hash), zip_file_path)
         with ZipFile(zip_file_path, "r") as zipObject:
-            listOfFileNames = zipObject.namelist()
             zipObject.extractall(engine_hash_path)
         gen_snapshot_file_path = "{}/gen_snapshot".format(engine_hash_path)
         if isfile(gen_snapshot_file_path):
