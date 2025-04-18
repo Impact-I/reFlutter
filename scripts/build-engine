@@ -5,7 +5,7 @@ ROOT_DIR=$(pwd)
 
 # Required packages for macOS
 brew update
-brew install libzip openssl libplist autoconf automake libtool autoconf-archive pkg-config ninja
+brew install libzip openssl libplist autoconf automake libtool autoconf-archive pkg-config ninja python3.13
 export PKG_CONFIG_PATH=$PKG_CONFIG_PATH:/usr/local/opt/openssl@1.1/lib/pkgconfig
 brew install libplist libusbmuxd
 cd "$ROOT_DIR"
