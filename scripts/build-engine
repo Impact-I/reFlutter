@@ -27,7 +27,9 @@ git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git
 if [ -d "engine" ]; then
   rm -rf engine
 fi
-git clone https://github.com/flutter/flutter.git
+
+# Deprecated repo: https://github.com/flutter/engine
+git clone https://github.com/flutter/flutter.git engine
 
 export PATH=$PATH:$ROOT_DIR/depot_tools
 cd engine

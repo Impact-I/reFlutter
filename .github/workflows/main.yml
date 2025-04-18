@@ -25,7 +25,7 @@ jobs:
           python3 -m pip install wheel
           python3 -m pip install .
           git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git
-          git clone https://github.com/flutter/engine.git
+          git clone https://github.com/flutter/flutter.git engine
       - name: gclient sync
         run: |
           ROOT_DIR=`pwd`
@@ -86,7 +86,7 @@ jobs:
           python3 -m pip install wheel
           python3 -m pip install .
           git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git
-          git clone https://github.com/flutter/engine.git
+          git clone https://github.com/flutter/flutter.git engine
       - name: gclient sync
         run: |
           ROOT_DIR=`pwd`
