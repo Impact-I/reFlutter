@@ -102,6 +102,9 @@ def _build_engine(libapp_hash: str):
                     or os.path.exists("tools/generate_package_config/pubspec.yaml")
                     or os.path.exists("deps")
                     or os.path.exists("src/flutter/third_party/dart/runtime/vm/dart.cc")
+                    or os.path.exists(
+                        "engine/src/flutter/third_party/dart/runtime/vm/dart.cc"
+                    )
                 ):
                     utils.patch_source(libapp_hash, abs(i), patch_dump)
 

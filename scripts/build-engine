@@ -5,7 +5,7 @@ ROOT_DIR=$(pwd)
 
 # Required packages for macOS
 brew update
-brew install libzip openssl libplist autoconf automake libtool autoconf-archive pkg-config ninja
+brew install libzip openssl libplist autoconf automake libtool autoconf-archive pkg-config ninja python@3.13
 export PKG_CONFIG_PATH=$PKG_CONFIG_PATH:/usr/local/opt/openssl@1.1/lib/pkgconfig
 brew install libplist libusbmuxd
 cd "$ROOT_DIR"
@@ -14,7 +14,6 @@ brew install ideviceinstaller
 brew install ios-deploy
 
 # Install reflutter
-# shellcheck disable=SC2103
 cd ..
 pip3 install wheel
 pip3 install .
@@ -27,13 +26,15 @@ git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git
 if [ -d "engine" ]; then
   rm -rf engine
 fi
-git clone https://github.com/flutter/engine.git
+
+# Deprecated repo: https://github.com/flutter/engine
+git clone https://github.com/flutter/flutter.git engine
 
 export PATH=$PATH:$ROOT_DIR/depot_tools
 cd engine
-git fetch origin $(reflutter "$SNAPSHOT_HASH" -l)
+git fetch origin $(reflutter -b "$SNAPSHOT_HASH")
 git reset --hard FETCH_HEAD
-reflutter "$SNAPSHOT_HASH" -l
+reflutter -b "$SNAPSHOT_HASH" -p
 echo 'reflutter' >REFLUTTER
 git add . && git commit -am "reflutter"
 cd "$ROOT_DIR"
@@ -42,19 +43,21 @@ if [ -d "customEngine" ]; then
 fi
 mkdir customEngine
 cd customEngine
-echo 'solutions = [{"managed": False,"name": "src/flutter","url": "'"$ROOT_DIR"/engine'","custom_deps": {},"deps_file": "DEPS","safesync_url": "",},]' >.gclient
+# Deprecated engine path
+# echo 'solutions = [{"managed": False,"name": "src/flutter","url": "'"$ROOT_DIR"/engine'","custom_deps": {},"deps_file": "DEPS","safesync_url": "",},]' >.gclient
+echo 'solutions = [{"managed": False,"name": "engine/src/flutter","url": "'"$ROOT_DIR"/engine'","custom_deps": {},"deps_file": "DEPS","safesync_url": "",},]' >.gclient
 gclient sync
-reflutter "$SNAPSHOT_HASH" -l
+reflutter -b "$SNAPSHOT_HASH" -p
 cd "$ROOT_DIR"
-export PATH=$PATH:$(pwd)/depot_tools && sudo xcode-select -s /Applications/Xcode.app && customEngine/src/flutter/tools/gn --ios --runtime-mode=release && ninja -C customEngine/src/out/ios_release
-cp customEngine/src/out/ios_release/Flutter.framework/Flutter Flutter
+export PATH=$PATH:$(pwd)/depot_tools && sudo xcode-select -s /Applications/Xcode.app && customEngine/engine/src/flutter/tools/gn --ios --runtime-mode=release && ninja -C customEngine/engine/src/out/ios_release
+cp customEngine/engine/src/out/ios_release/Flutter.framework/Flutter Flutter
 cd "$ROOT_DIR"
-export PATH=$PATH:$(pwd)/depot_tools && customEngine/src/flutter/tools/gn --no-goma --android --android-cpu=arm64 --runtime-mode=release && ninja -C customEngine/src/out/android_release_arm64
+export PATH=$PATH:$(pwd)/depot_tools && customEngine/engine/src/flutter/tools/gn --no-goma --android --android-cpu=arm64 --runtime-mode=release && ninja -C customEngine/engine/src/out/android_release_arm64
 cd "$ROOT_DIR"
-export PATH=$PATH:$(pwd)/depot_tools && customEngine/src/flutter/tools/gn --no-goma --android --android-cpu=arm --runtime-mode=release && ninja -C customEngine/src/out/android_release
+export PATH=$PATH:$(pwd)/depot_tools && customEngine/engine/src/flutter/tools/gn --no-goma --android --android-cpu=arm --runtime-mode=release && ninja -C customEngine/engine/src/out/android_release
 cd "$ROOT_DIR"
-export PATH=$PATH:$(pwd)/depot_tools && customEngine/src/flutter/tools/gn --no-goma --android --android-cpu=x64 --runtime-mode=release && ninja -C customEngine/src/out/android_release_x64
+export PATH=$PATH:$(pwd)/depot_tools && customEngine/engine/src/flutter/tools/gn --no-goma --android --android-cpu=x64 --runtime-mode=release && ninja -C customEngine/engine/src/out/android_release_x64
 cd "$ROOT_DIR"
-cp customEngine/src/out/android_release_arm64/lib.stripped/libflutter.so libflutter_arm64.so 2>/dev/null
-cp customEngine/src/out/android_release/lib.stripped/libflutter.so libflutter_arm.so 2>/dev/null
-cp customEngine/src/out/android_release_x64/lib.stripped/libflutter.so libflutter_x64.so 2>/dev/null
+cp customEngine/engine/src/out/android_release_arm64/lib.stripped/libflutter.so libflutter_arm64.so 2>/dev/null
+cp customEngine/engine/src/out/android_release/lib.stripped/libflutter.so libflutter_arm.so 2>/dev/null
+cp customEngine/engine/src/out/android_release_x64/lib.stripped/libflutter.so libflutter_x64.so 2>/dev/null

@@ -21,11 +21,11 @@ jobs:
           echo "SNAPSHOT_HASH=$HASH" >> $GITHUB_ENV
       - name: Install tools
         run: |
-          brew install ninja libusbmuxd ideviceinstaller ios-deploy
+          brew install ninja libusbmuxd ideviceinstaller ios-deploy python@3.13
           python3 -m pip install wheel
           python3 -m pip install .
           git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git
-          git clone https://github.com/flutter/engine.git
+          git clone https://github.com/flutter/flutter.git engine
       - name: gclient sync
         run: |
           ROOT_DIR=`pwd`
@@ -40,20 +40,20 @@ jobs:
           cd $ROOT_DIR
           mkdir customEngine
           cd customEngine
-          echo 'solutions = [{"managed": False,"name": "src/flutter","url": "'$ROOT_DIR/engine'","custom_deps": {},"deps_file": "DEPS","safesync_url": "",},]' > .gclient
+          echo 'solutions = [{"managed": False,"name": ".","url": "'$ROOT_DIR/engine'","custom_deps": {},"deps_file": "DEPS","safesync_url": "",},]' > .gclient
           gclient sync
           reflutter -b ${{env.SNAPSHOT_HASH}}
       - name: ninja build Flutter.framework
-        run: export PATH=$PATH:`pwd`/depot_tools && sudo xcode-select -s /Applications/Xcode.app && customEngine/src/flutter/tools/gn --no-goma --ios --runtime-mode=release && ninja -C customEngine/src/out/ios_release
+        run: export PATH=$PATH:`pwd`/depot_tools && sudo xcode-select -s /Applications/Xcode.app && customEngine/engine/src/flutter/tools/gn --no-goma --ios --runtime-mode=release && ninja -C customEngine/engine/src/out/ios_release
       - name: ninja build libflutter_arm64
-        run: export PATH=$PATH:`pwd`/depot_tools && customEngine/src/flutter/tools/gn --no-goma --android --android-cpu=arm64 --runtime-mode=release && ninja -C customEngine/src/out/android_release_arm64
+        run: export PATH=$PATH:`pwd`/depot_tools && customEngine/engine/src/flutter/tools/gn --no-goma --android --android-cpu=arm64 --runtime-mode=release && ninja -C customEngine/engine/src/out/android_release_arm64
       - name: ninja build libflutter_arm
-        run: export PATH=$PATH:`pwd`/depot_tools && customEngine/src/flutter/tools/gn --no-goma --android --android-cpu=arm --runtime-mode=release && ninja -C customEngine/src/out/android_release
+        run: export PATH=$PATH:`pwd`/depot_tools && customEngine/engine/src/flutter/tools/gn --no-goma --android --android-cpu=arm --runtime-mode=release && ninja -C customEngine/engine/src/out/android_release
       - name: Move to release
         run: |
-          cp customEngine/src/out/ios_release/Flutter.framework/Flutter Flutter
-          cp customEngine/src/out/android_release_arm64/lib.stripped/libflutter.so libflutter_arm64.so 2>/dev/null || :
-          cp customEngine/src/out/android_release/lib.stripped/libflutter.so libflutter_arm.so 2>/dev/null || :
+          cp customEngine/engine/src/out/ios_release/Flutter.framework/Flutter Flutter
+          cp customEngine/engine/src/out/android_release_arm64/lib.stripped/libflutter.so libflutter_arm64.so 2>/dev/null || :
+          cp customEngine/engine/src/out/android_release/lib.stripped/libflutter.so libflutter_arm.so 2>/dev/null || :
       - name: iOS-Release
         uses: softprops/action-gh-release@v1
         with:
@@ -82,11 +82,11 @@ jobs:
           echo "SNAPSHOT_HASH=$HASH" >> $GITHUB_ENV
       - name: Install tools
         run: |
-          brew install ninja libusbmuxd ideviceinstaller ios-deploy
+          brew install ninja libusbmuxd ideviceinstaller ios-deploy python@3.13
           python3 -m pip install wheel
           python3 -m pip install .
           git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git
-          git clone https://github.com/flutter/engine.git
+          git clone https://github.com/flutter/flutter.git engine
       - name: gclient sync
         run: |
           ROOT_DIR=`pwd`
@@ -101,20 +101,20 @@ jobs:
           cd $ROOT_DIR
           mkdir customEngine
           cd customEngine
-          echo 'solutions = [{"managed": False,"name": "src/flutter","url": "'$ROOT_DIR/engine'","custom_deps": {},"deps_file": "DEPS","safesync_url": "",},]' > .gclient
+          echo 'solutions = [{"managed": False,"name": ".","url": "'$ROOT_DIR/engine'","custom_deps": {},"deps_file": "DEPS","safesync_url": "",},]' > .gclient
           gclient sync
           reflutter -b ${{env.SNAPSHOT_HASH}} -p
       - name: ninja build Flutter.framework
-        run: export PATH=$PATH:`pwd`/depot_tools && sudo xcode-select -s /Applications/Xcode.app && customEngine/src/flutter/tools/gn --no-goma --ios --runtime-mode=release && ninja -C customEngine/src/out/ios_release
+        run: export PATH=$PATH:`pwd`/depot_tools && sudo xcode-select -s /Applications/Xcode.app && customEngine/engine/src/flutter/tools/gn --no-goma --ios --runtime-mode=release && ninja -C customEngine/engine/src/out/ios_release
       - name: ninja build libflutter_arm64
-        run: export PATH=$PATH:`pwd`/depot_tools && customEngine/src/flutter/tools/gn --no-goma --android --android-cpu=arm64 --runtime-mode=release && ninja -C customEngine/src/out/android_release_arm64
+        run: export PATH=$PATH:`pwd`/depot_tools && customEngine/engine/src/flutter/tools/gn --no-goma --android --android-cpu=arm64 --runtime-mode=release && ninja -C customEngine/engine/src/out/android_release_arm64
       - name: ninja build libflutter_arm
-        run: export PATH=$PATH:`pwd`/depot_tools && customEngine/src/flutter/tools/gn --no-goma --android --android-cpu=arm --runtime-mode=release && ninja -C customEngine/src/out/android_release
+        run: export PATH=$PATH:`pwd`/depot_tools && customEngine/engine/src/flutter/tools/gn --no-goma --android --android-cpu=arm --runtime-mode=release && ninja -C customEngine/engine/src/out/android_release
       - name: Move to release
         run: |
-          cp customEngine/src/out/ios_release/Flutter.framework/Flutter Flutter
-          cp customEngine/src/out/android_release_arm64/lib.stripped/libflutter.so libflutter_arm64.so 2>/dev/null || :
-          cp customEngine/src/out/android_release/lib.stripped/libflutter.so libflutter_arm.so 2>/dev/null || :
+          cp customEngine/engine/src/out/ios_release/Flutter.framework/Flutter Flutter
+          cp customEngine/engine/src/out/android_release_arm64/lib.stripped/libflutter.so libflutter_arm64.so 2>/dev/null || :
+          cp customEngine/engine/src/out/android_release/lib.stripped/libflutter.so libflutter_arm.so 2>/dev/null || :
       - name: iOS-Release
         uses: softprops/action-gh-release@v1
         with:
