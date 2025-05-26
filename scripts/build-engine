@@ -45,7 +45,7 @@ mkdir customEngine
 cd customEngine
 # Deprecated engine path
 # echo 'solutions = [{"managed": False,"name": "src/flutter","url": "'"$ROOT_DIR"/engine'","custom_deps": {},"deps_file": "DEPS","safesync_url": "",},]' >.gclient
-echo 'solutions = [{"managed": False,"name": "engine/src/flutter","url": "'"$ROOT_DIR"/engine'","custom_deps": {},"deps_file": "DEPS","safesync_url": "",},]' >.gclient
+echo 'solutions = [{"managed": False,"name": ".","url": "'"$ROOT_DIR"/engine'","custom_deps": {},"deps_file": "DEPS","safesync_url": "",},]' >.gclient
 gclient sync
 reflutter -b "$SNAPSHOT_HASH" -p
 cd "$ROOT_DIR"
