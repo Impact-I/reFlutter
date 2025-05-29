@@ -66,7 +66,6 @@ jobs:
           tag_name: android-v2-${{env.SNAPSHOT_HASH}}
           files: |
             ./*.so
-
   build-v3:
     runs-on: macos-13
     steps:
