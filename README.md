@@ -24,7 +24,7 @@ Key features:
 
 ```
 # Linux, Windows, MacOS
-pip3 install reflutter==0.8.5
+pip3 install reflutter==0.8.6
 ```
 
 ### Usage
@@ -55,7 +55,7 @@ No certificate installation or root access is required for Android. reFlutter al
 
 > ⚠️ **Note:** Starting from Flutter version **3.24.0** (snapshot hash: `80a49c7111088100a233b2ae788e1f48`), the hardcoded proxy IP and port have been removed. You now need to configure your proxy directly on the device.
 
-#### On Android:
+#### On Android
 
 Use ADB to configure the device’s proxy:
 
@@ -65,7 +65,7 @@ adb -s <device> shell "settings put global http_proxy <proxy_ip:port>"
 
 Sign, align, and install the APK. Optionally configure **TunProxy** to route traffic through Burp Suite.
 
-#### On iOS:
+#### On iOS
 
 Sign and install the IPA. Configure **Potatso** to use your Burp Suite proxy server.
 
@@ -107,6 +107,11 @@ Retrieve the file from the device.
 <p align="center"><img src="https://user-images.githubusercontent.com/87244850/135860648-a13ba3fd-93d2-4eab-bd38-9aa775c3178f.png" width="100%"/></p>
 
 ### Frida
+
+```
+frida-tools==13.7.1
+frida==16.7.19
+```
 
 Use dump offsets in the Frida [script](https://github.com/Impact-I/reFlutter/blob/main/frida.js):
 

@@ -22,3 +22,4 @@ reflutter.egg-info/
 goma/
 .venv/
 *.idsig
+.DS_Store
