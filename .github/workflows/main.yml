@@ -7,7 +7,7 @@ on:
 
 jobs:
   build-v2:
-    runs-on: macos-13
+    runs-on: macos-14
     steps:
       - name: Check out repository
         uses: actions/checkout@v2
@@ -22,8 +22,8 @@ jobs:
       - name: Install tools
         run: |
           brew install ninja libusbmuxd ideviceinstaller ios-deploy python@3.13
-          python3 -m pip install wheel
-          python3 -m pip install .
+          python3 -m pip install wheel  --break-system-packages
+          python3 -m pip install .  --break-system-packages
           git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git
           git clone https://github.com/flutter/flutter.git engine
       - name: gclient sync
@@ -68,7 +68,7 @@ jobs:
             ./*.so
 
   build-v3:
-    runs-on: macos-13
+    runs-on: macos-14
     steps:
       - name: Check out repository
         uses: actions/checkout@v2
@@ -83,8 +83,8 @@ jobs:
       - name: Install tools
         run: |
           brew install ninja libusbmuxd ideviceinstaller ios-deploy python@3.13
-          python3 -m pip install wheel
-          python3 -m pip install .
+          python3 -m pip install wheel --break-system-packages
+          python3 -m pip install . --break-system-packages
           git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git
           git clone https://github.com/flutter/flutter.git engine
       - name: gclient sync
