@@ -7,7 +7,7 @@ on:
 
 jobs:
   build-v2:
-    runs-on: macos-13
+    runs-on: macos-14
     steps:
       - name: Check out repository
         uses: actions/checkout@v2
@@ -68,14 +68,14 @@ jobs:
             ./*.so
 
   build-v3:
-    runs-on: macos-13
+    runs-on: macos-14
     steps:
       - name: Check out repository
         uses: actions/checkout@v2
       - name: Setup Xcode version
         uses: maxim-lobanov/setup-xcode@v1.3.0
         with:
-          xcode-version: 15.0
+          xcode-version: latest-stable
       - name: Set variables
         run: |
           HASH=$(cat SNAPSHOT_HASH)
