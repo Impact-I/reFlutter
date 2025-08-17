@@ -22,8 +22,8 @@ jobs:
       - name: Install tools
         run: |
           brew install ninja libusbmuxd ideviceinstaller ios-deploy python@3.13
-          python3 -m pip install wheel
-          python3 -m pip install .
+          python3 -m pip install wheel  --break-system-packages
+          python3 -m pip install .  --break-system-packages
           git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git
           git clone https://github.com/flutter/flutter.git engine
       - name: gclient sync
@@ -83,8 +83,8 @@ jobs:
       - name: Install tools
         run: |
           brew install ninja libusbmuxd ideviceinstaller ios-deploy python@3.13
-          python3 -m pip install wheel
-          python3 -m pip install .
+          python3 -m pip install wheel --break-system-packages
+          python3 -m pip install . --break-system-packages
           git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git
           git clone https://github.com/flutter/flutter.git engine
       - name: gclient sync
