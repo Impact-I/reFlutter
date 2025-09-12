@@ -5,7 +5,21 @@ function hookFunc() {
 
   var argBufferSize = 150;
 
-  var address = Module.findBaseAddress("libapp.so"); // libapp.so (Android) or App (IOS)
+  let address;
+  try {
+      address = Module.findBaseAddress("libapp.so"); // libapp.so (Android) or App (IOS)
+  }
+  catch (e) {
+      if (e instanceof TypeError && e.message === "not a function") {
+          address = Process.findModuleByName("libapp.so");
+          if (address != null) {
+              address = address.base;
+          }
+      }
+      else {
+          throw e;
+      }
+  }
   console.log("\n\nbaseAddress: " + address.toString());
 
   var codeOffset = address.add(dumpOffset);
