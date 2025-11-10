@@ -41,8 +41,24 @@ jobs:
       - name: Create output directory
         run: mkdir -p output
       
+      - name: Check reFlutter directory structure
+        run: |
+          echo "reFlutter directory contents:"
+          ls -lah reFlutter/
+      
+      - name: Copy reFlutter files to output (if needed)
+        run: |
+          # Copy any necessary files from reFlutter to output directory
+          if [ -f reFlutter/setup.py ]; then
+            cp reFlutter/setup.py output/
+          fi
+          if [ -f reFlutter/pyproject.toml ]; then
+            cp reFlutter/pyproject.toml output/
+          fi
+      
       - name: Run reFlutter build for ARM64
         run: |
+          cd reFlutter
           docker run \
             -e WAIT=${{ inputs.wait_time }} \
             -e x64=0 \
@@ -50,20 +66,36 @@ jobs:
             -e HASH_PATCH=${{ inputs.snapshot_hash }} \
             -e COMMIT=${{ inputs.engine_commit }} \
             --rm \
-            -v ${{ github.workspace }}/output:/t \
+            -v "$(pwd):/t" \
             reflutter
+      
+      - name: Copy built artifacts
+        run: |
+          echo "Copying artifacts from reFlutter directory..."
+          cp -r reFlutter/*.so output/ 2>/dev/null || true
+          cp -r reFlutter/*.zip output/ 2>/dev/null || true
+          cp -r reFlutter/build output/ 2>/dev/null || true
       
       - name: List built artifacts
         run: |
           echo "Built artifacts:"
-          ls -lah output/
+          ls -lah output/ || echo "No output directory"
+          echo ""
+          echo "reFlutter directory after build:"
+          ls -lah reFlutter/
       
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: reflutter-arm64-${{ inputs.snapshot_hash }}
-          path: output/*
+          path: |
+            output/*
+            reFlutter/*.so
+            reFlutter/*.zip
+            reFlutter/build/**
           retention-days: 30
+          if-no-files-found: warn
       
       - name: Create Release (Optional)
         if: github.ref == 'refs/heads/main'
