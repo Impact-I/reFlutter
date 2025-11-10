@@ -1,129 +1,82 @@
-name: Build
+name: Build reFlutter Android ARM64
 
 on:
-  pull_request:
-    branches:
-      - "*"
+  workflow_dispatch:
+    inputs:
+      snapshot_hash:
+        description: 'Snapshot Hash'
+        required: true
+        type: string
+      engine_commit:
+        description: 'Engine Commit'
+        required: true
+        type: string
+      wait_time:
+        description: 'Wait Time (seconds)'
+        required: false
+        default: '300'
+        type: string
 
 jobs:
-  build-v2:
-    runs-on: macos-14
+  build:
+    runs-on: ubuntu-latest
+    
     steps:
-      - name: Check out repository
-        uses: actions/checkout@v2
-      - name: Setup Xcode version
-        uses: maxim-lobanov/setup-xcode@v1.3.0
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: Clone reFlutter
+        run: |
+          git clone https://github.com/Impact-I/reFlutter
+          cd reFlutter
+      
+      - name: Build Docker image
+        run: |
+          cd reFlutter
+          docker build -t reflutter -f Dockerfile .
+      
+      - name: Create output directory
+        run: mkdir -p output
+      
+      - name: Run reFlutter build for ARM64
+        run: |
+          docker run \
+            -e WAIT=${{ inputs.wait_time }} \
+            -e x64=0 \
+            -e arm=0 \
+            -e HASH_PATCH=${{ inputs.snapshot_hash }} \
+            -e COMMIT=${{ inputs.engine_commit }} \
+            --rm \
+            -v ${{ github.workspace }}/output:/t \
+            reflutter
+      
+      - name: List built artifacts
+        run: |
+          echo "Built artifacts:"
+          ls -lah output/
+      
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
         with:
-          xcode-version: latest-stable
-      - name: Set variables
-        run: |
-          HASH=$(cat SNAPSHOT_HASH)
-          echo "SNAPSHOT_HASH=$HASH" >> $GITHUB_ENV
-      - name: Install tools
-        run: |
-          brew install ninja libusbmuxd ideviceinstaller ios-deploy python@3.13
-          python3 -m pip install wheel  --break-system-packages
-          python3 -m pip install .  --break-system-packages
-          git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git
-          git clone https://github.com/flutter/flutter.git engine
-      - name: gclient sync
-        run: |
-          ROOT_DIR=`pwd`
-          export PATH=$PATH:$ROOT_DIR/depot_tools
-          cd engine
-          git config --global user.email "reflutter@example.com" && git config --global user.name "reflutter"
-          git fetch origin $(reflutter -b ${{env.SNAPSHOT_HASH}})
-          git reset --hard FETCH_HEAD
-          reflutter -b ${{env.SNAPSHOT_HASH}}
-          echo 'reflutter' > REFLUTTER
-          git add . && git commit -am "reflutter"
-          cd $ROOT_DIR
-          mkdir customEngine
-          cd customEngine
-          echo 'solutions = [{"managed": False,"name": ".","url": "'$ROOT_DIR/engine'","custom_deps": {},"deps_file": "DEPS","safesync_url": "",},]' > .gclient
-          gclient sync
-          reflutter -b ${{env.SNAPSHOT_HASH}}
-      - name: ninja build Flutter.framework
-        run: export PATH=$PATH:`pwd`/depot_tools && sudo xcode-select -s /Applications/Xcode.app && customEngine/engine/src/flutter/tools/gn --no-goma --ios --runtime-mode=release && ninja -C customEngine/engine/src/out/ios_release
-      - name: ninja build libflutter_arm64
-        run: export PATH=$PATH:`pwd`/depot_tools && customEngine/engine/src/flutter/tools/gn --no-goma --android --android-cpu=arm64 --runtime-mode=release && ninja -C customEngine/engine/src/out/android_release_arm64
-      - name: ninja build libflutter_arm
-        run: export PATH=$PATH:`pwd`/depot_tools && customEngine/engine/src/flutter/tools/gn --no-goma --android --android-cpu=arm --runtime-mode=release && ninja -C customEngine/engine/src/out/android_release
-      - name: Move to release
-        run: |
-          cp customEngine/engine/src/out/ios_release/Flutter.framework/Flutter Flutter
-          cp customEngine/engine/src/out/android_release_arm64/lib.stripped/libflutter.so libflutter_arm64.so 2>/dev/null || :
-          cp customEngine/engine/src/out/android_release/lib.stripped/libflutter.so libflutter_arm.so 2>/dev/null || :
-      - name: iOS-Release
+          name: reflutter-arm64-${{ inputs.snapshot_hash }}
+          path: output/*
+          retention-days: 30
+      
+      - name: Create Release (Optional)
+        if: github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: ios-v2-${{env.SNAPSHOT_HASH}}
-          files: |
-            ./Flutter
-      - name: Android-Release
-        uses: softprops/action-gh-release@v1
-        with:
-          tag_name: android-v2-${{env.SNAPSHOT_HASH}}
-          files: |
-            ./*.so
-
-  build-v3:
-    runs-on: macos-14
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v2
-      - name: Setup Xcode version
-        uses: maxim-lobanov/setup-xcode@v1.3.0
-        with:
-          xcode-version: latest-stable
-      - name: Set variables
-        run: |
-          HASH=$(cat SNAPSHOT_HASH)
-          echo "SNAPSHOT_HASH=$HASH" >> $GITHUB_ENV
-      - name: Install tools
-        run: |
-          brew install ninja libusbmuxd ideviceinstaller ios-deploy python@3.13
-          python3 -m pip install wheel --break-system-packages
-          python3 -m pip install . --break-system-packages
-          git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git
-          git clone https://github.com/flutter/flutter.git engine
-      - name: gclient sync
-        run: |
-          ROOT_DIR=`pwd`
-          export PATH=$PATH:$ROOT_DIR/depot_tools
-          cd engine
-          git config --global user.email "reflutter@example.com" && git config --global user.name "reflutter"
-          git fetch origin $(reflutter -b ${{env.SNAPSHOT_HASH}})
-          git reset --hard FETCH_HEAD
-          reflutter -b ${{env.SNAPSHOT_HASH}} -p
-          echo 'reflutter' > REFLUTTER
-          git add . && git commit -am "reflutter"
-          cd $ROOT_DIR
-          mkdir customEngine
-          cd customEngine
-          echo 'solutions = [{"managed": False,"name": ".","url": "'$ROOT_DIR/engine'","custom_deps": {},"deps_file": "DEPS","safesync_url": "",},]' > .gclient
-          gclient sync
-          reflutter -b ${{env.SNAPSHOT_HASH}} -p
-      - name: ninja build Flutter.framework
-        run: export PATH=$PATH:`pwd`/depot_tools && sudo xcode-select -s /Applications/Xcode.app && customEngine/engine/src/flutter/tools/gn --no-goma --ios --runtime-mode=release && ninja -C customEngine/engine/src/out/ios_release
-      - name: ninja build libflutter_arm64
-        run: export PATH=$PATH:`pwd`/depot_tools && customEngine/engine/src/flutter/tools/gn --no-goma --android --android-cpu=arm64 --runtime-mode=release && ninja -C customEngine/engine/src/out/android_release_arm64
-      - name: ninja build libflutter_arm
-        run: export PATH=$PATH:`pwd`/depot_tools && customEngine/engine/src/flutter/tools/gn --no-goma --android --android-cpu=arm --runtime-mode=release && ninja -C customEngine/engine/src/out/android_release
-      - name: Move to release
-        run: |
-          cp customEngine/engine/src/out/ios_release/Flutter.framework/Flutter Flutter
-          cp customEngine/engine/src/out/android_release_arm64/lib.stripped/libflutter.so libflutter_arm64.so 2>/dev/null || :
-          cp customEngine/engine/src/out/android_release/lib.stripped/libflutter.so libflutter_arm.so 2>/dev/null || :
-      - name: iOS-Release
-        uses: softprops/action-gh-release@v1
-        with:
-          tag_name: ios-v3-${{env.SNAPSHOT_HASH}}
-          files: |
-            ./Flutter
-      - name: Android-Release
-        uses: softprops/action-gh-release@v1
-        with:
-          tag_name: android-v3-${{env.SNAPSHOT_HASH}}
-          files: |
-            ./*.so
+          tag_name: build-${{ github.run_number }}
+          name: reFlutter ARM64 Build ${{ github.run_number }}
+          body: |
+            **Build Configuration:**
+            - Snapshot Hash: `${{ inputs.snapshot_hash }}`
+            - Engine Commit: `${{ inputs.engine_commit }}`
+            - Architecture: ARM64
+            - Wait Time: ${{ inputs.wait_time }}s
+          files: output/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
