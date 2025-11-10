@@ -23,7 +23,7 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest-8-cores  # Use larger runner if available
+    runs-on: ubuntu-latest  # Standard free runner
     timeout-minutes: 480  # 8 hours max (builds can take a long time)
     
     steps:
@@ -88,9 +88,9 @@ jobs:
           docker build -t reflutter \
             --build-arg HASH_PATCH=${{ inputs.snapshot_hash }} \
             --build-arg COMMIT=${{ inputs.engine_commit }} \
-            --build-arg arm64=${{ inputs.build_arm64 && 'arm64-v8a' || '0' }} \
-            --build-arg arm=${{ inputs.build_arm && 'armeabi-v7a' || '0' }} \
-            --build-arg x64=${{ inputs.build_x64 && 'x86_64' || '0' }} \
+            --build-arg arm64=arm64-v8a \
+            --build-arg arm=0 \
+            --build-arg x64=0 \
             -f Dockerfile .
       
       - name: Create output directory
@@ -100,6 +100,10 @@ jobs:
         run: |
           cd reFlutter
           
+          echo "=== Building ARM64 only ==="
+          echo "This will take approximately 3-5 hours"
+          echo ""
+          
           # Start disk space monitoring in background
           (while true; do 
             echo "=== Disk Usage [$(date +%T)] ===" 
@@ -108,12 +112,12 @@ jobs:
           done) &
           MONITOR_PID=$!
           
-          # Run the build
+          # Run the build (ARM64 ONLY)
           docker run \
             -e WAIT=${{ inputs.wait_time }} \
-            -e arm64=${{ inputs.build_arm64 && 'arm64-v8a' || '0' }} \
-            -e arm=${{ inputs.build_arm && 'armeabi-v7a' || '0' }} \
-            -e x64=${{ inputs.build_x64 && 'x86_64' || '0' }} \
+            -e arm64=arm64-v8a \
+            -e arm=0 \
+            -e x64=0 \
             -e HASH_PATCH=${{ inputs.snapshot_hash }} \
             -e COMMIT=${{ inputs.engine_commit }} \
             --rm \
@@ -137,26 +141,21 @@ jobs:
           if [ -f libflutter_arm64.so ]; then
             cp libflutter_arm64.so ${{ github.workspace }}/output/
             echo "✓ Copied libflutter_arm64.so"
-          fi
-          if [ -f libflutter_arm.so ]; then
-            cp libflutter_arm.so ${{ github.workspace }}/output/
-            echo "✓ Copied libflutter_arm.so"
-          fi
-          if [ -f libflutter_x64.so ]; then
-            cp libflutter_x64.so ${{ github.workspace }}/output/
-            echo "✓ Copied libflutter_x64.so"
+            ls -lh libflutter_arm64.so
+          else
+            echo "❌ libflutter_arm64.so not found!"
+            exit 1
           fi
           
           # Create a build info file
           cat > ${{ github.workspace }}/output/build_info.txt << EOF
-          reFlutter Build Information
-          ============================
+          reFlutter ARM64 Build Information
+          ==================================
           Snapshot Hash: ${{ inputs.snapshot_hash }}
           Engine Commit: ${{ inputs.engine_commit }}
           Build Date: $(date -u +"%Y-%m-%d %H:%M:%S UTC")
-          ARM64: ${{ inputs.build_arm64 }}
-          ARM (32-bit): ${{ inputs.build_arm }}
-          x64: ${{ inputs.build_x64 }}
+          Architecture: ARM64 (arm64-v8a)
+          Runner: GitHub Actions
           EOF
           
           echo ""
@@ -177,25 +176,22 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           tag_name: build-${{ github.run_number }}
-          name: reFlutter Build ${{ github.run_number }}
+          name: reFlutter ARM64 Build ${{ github.run_number }}
           body: |
-            ## reFlutter Android Build
+            ## reFlutter Android ARM64 Build
             
             **Configuration:**
             - 📱 Snapshot Hash: `${{ inputs.snapshot_hash }}`
             - 🔧 Engine Commit: `${{ inputs.engine_commit }}`
             - ⏱️ Wait Time: ${{ inputs.wait_time }}s
-            
-            **Architectures:**
-            - ARM64 (arm64-v8a): ${{ inputs.build_arm64 && '✅' || '❌' }}
-            - ARM 32-bit (armeabi-v7a): ${{ inputs.build_arm && '✅' || '❌' }}
-            - x64 (x86_64): ${{ inputs.build_x64 && '✅' || '❌' }}
+            - 🏗️ Architecture: ARM64 (arm64-v8a) only
             
             **Files:**
-            - `libflutter_arm64.so` - ARM64 library (if built)
-            - `libflutter_arm.so` - ARM 32-bit library (if built)
-            - `libflutter_x64.so` - x64 library (if built)
+            - `libflutter_arm64.so` - ARM64 library for Android
             - `build_info.txt` - Build metadata
+            
+            **Usage:**
+            Replace the `libflutter.so` in your Flutter APK's `lib/arm64-v8a/` directory with this patched version.
           files: output/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -203,26 +199,22 @@ jobs:
       - name: Build summary
         if: always()
         run: |
-          echo "### reFlutter Build Summary" >> $GITHUB_STEP_SUMMARY
+          echo "### reFlutter ARM64 Build Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Configuration:**" >> $GITHUB_STEP_SUMMARY
           echo "- Snapshot Hash: \`${{ inputs.snapshot_hash }}\`" >> $GITHUB_STEP_SUMMARY
           echo "- Engine Commit: \`${{ inputs.engine_commit }}\`" >> $GITHUB_STEP_SUMMARY
           echo "- Wait Time: ${{ inputs.wait_time }}s" >> $GITHUB_STEP_SUMMARY
+          echo "- Architecture: ARM64 (arm64-v8a) only" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Architectures Built:**" >> $GITHUB_STEP_SUMMARY
-          echo "- ARM64: ${{ inputs.build_arm64 && '✅' || '❌' }}" >> $GITHUB_STEP_SUMMARY
-          echo "- ARM 32-bit: ${{ inputs.build_arm && '✅' || '❌' }}" >> $GITHUB_STEP_SUMMARY
-          echo "- x64: ${{ inputs.build_x64 && '✅' || '❌' }}" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          if [ -d output ] && [ "$(ls -A output/*.so 2>/dev/null)" ]; then
-            echo "**Built Artifacts:**" >> $GITHUB_STEP_SUMMARY
-            for file in output/*.so; do
-              if [ -f "$file" ]; then
-                size=$(ls -lh "$file" | awk '{print $5}')
-                echo "- \`$(basename $file)\` ($size)" >> $GITHUB_STEP_SUMMARY
-              fi
-            done
+          if [ -f output/libflutter_arm64.so ]; then
+            size=$(ls -lh output/libflutter_arm64.so | awk '{print $5}')
+            echo "**✅ Build Successful**" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**Built Artifact:**" >> $GITHUB_STEP_SUMMARY
+            echo "- \`libflutter_arm64.so\` ($size)" >> $GITHUB_STEP_SUMMARY
           else
-            echo "⚠️ No .so files were generated" >> $GITHUB_STEP_SUMMARY
+            echo "**❌ Build Failed**" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "No ARM64 library was generated. Check the logs for errors." >> $GITHUB_STEP_SUMMARY
           fi
