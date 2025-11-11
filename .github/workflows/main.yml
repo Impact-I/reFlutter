@@ -1,9 +1,5 @@
 name: Build reFlutter Android ARM64 Only
 
-# NOTE: ARM64-only builds require ~40-50GB disk space and take 3-5 hours
-# GitHub Actions free runners may still run out of space
-# Consider using self-hosted runners for reliable builds
-
 on:
   workflow_dispatch:
     inputs:
@@ -12,9 +8,10 @@ on:
         required: true
         type: string
       engine_commit:
-        description: 'Engine Commit (e.g., cf56914b326edb0ccb123ffdc60f00060bd513fa)'
+        description: 'Engine Commit (e.g., 57d3bac3dd5cb5b0e464ab70e7bc8a0d8cf083ab)'
         required: true
         type: string
+        default: '57d3bac3dd5cb5b0e464ab70e7bc8a0d8cf083ab'
       wait_time:
         description: 'Wait Time in seconds (for source code modifications)'
         required: false
@@ -23,8 +20,8 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest  # Standard free runner
-    timeout-minutes: 480  # 8 hours max (builds can take a long time)
+    runs-on: ubuntu-latest
+    timeout-minutes: 480
     
     steps:
       - name: Free up disk space
@@ -32,12 +29,10 @@ jobs:
           echo "=== Before cleanup ==="
           df -h
           
-          # Remove unnecessary packages
           sudo apt-get remove -y '^aspnetcore-.*' '^dotnet-.*' '^llvm-.*' 'php.*' '^mongodb-.*' '^mysql-.*' azure-cli google-chrome-stable firefox powershell mono-devel libgl1-mesa-dri
           sudo apt-get autoremove -y
           sudo apt-get clean
           
-          # Remove large directories
           sudo rm -rf /usr/share/dotnet
           sudo rm -rf /usr/local/lib/android
           sudo rm -rf /opt/ghc
@@ -52,21 +47,18 @@ jobs:
           sudo rm -rf /usr/local/share/chromium
           sudo rm -rf /usr/local/lib/node_modules
           
-          # Remove Docker images we don't need
           docker rmi $(docker image ls -aq) 2>/dev/null || true
           
           echo ""
           echo "=== After cleanup ==="
           df -h
           
-          # Check if we have at least 50GB free
           FREE_SPACE=$(df -BG / | awk 'NR==2 {print $4}' | sed 's/G//')
           echo ""
           echo "Free space: ${FREE_SPACE}GB"
           
           if [ "$FREE_SPACE" -lt 50 ]; then
-            echo "⚠️  WARNING: Only ${FREE_SPACE}GB free. Flutter engine builds typically need 50GB+"
-            echo "Build may fail due to insufficient disk space"
+            echo "⚠️  WARNING: Only ${FREE_SPACE}GB free. Build may need 50GB+"
           fi
       
       - name: Checkout repository
@@ -82,86 +74,137 @@ jobs:
           echo "reFlutter repository contents:"
           ls -lah
       
-      - name: Create custom Dockerfile with Ninja fix
+      - name: Create optimized Dockerfile
         run: |
           cd reFlutter
-          # Backup original
           cp Dockerfile Dockerfile.original
           
-          # Create modified Dockerfile with ninja-build package
           cat > Dockerfile << 'DOCKERFILE_END'
-          FROM ubuntu:22.04
-          ARG HASH_PATCH
-          ARG COMMIT
-          ARG arm
-          ARG arm64
-          ARG x64
-          ENV DEPOT_TOOLS_PATH=/depot_tools
-          ENV TEMP_ENGINE=/engine
-          ENV ENGINE_PATH=/customEngine
-          ENV PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/depot_tools
-          ENV WAIT=4
-          ENV arm64=${arm64:-arm64-v8a}
-          ENV arm=${arm:-armeabi-v7a}
-          ENV x64=${x64:-x86_64}
-          ENV HASH_PATCH=$HASH_PATCH
-          ENV COMMIT=$COMMIT
+FROM ubuntu:22.04
+
+ARG HASH_PATCH
+ARG COMMIT
+ARG arm
+ARG arm64
+ARG x64
+
+ENV DEPOT_TOOLS_PATH=/depot_tools
+ENV TEMP_ENGINE=/engine
+ENV ENGINE_PATH=/customEngine
+ENV PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/depot_tools
+ENV WAIT=4
+ENV arm64=${arm64:-arm64-v8a}
+ENV arm=${arm:-armeabi-v7a}
+ENV x64=${x64:-x86_64}
+ENV HASH_PATCH=$HASH_PATCH
+ENV COMMIT=$COMMIT
+ENV GCLIENT_SUPPRESS_GIT_VERSION_WARNING=1
+ENV DEPOT_TOOLS_UPDATE=0
+
+RUN apt-get update && \
+  DEBIAN_FRONTEND="noninteractive" apt-get install -y \
+  git git-svn git-man wget curl software-properties-common unzip \
+  python3-pip python3 lsb-release sudo apt-transport-https tzdata \
+  python3-pkgconfig default-jre default-jdk ninja-build && \
+  mkdir t
+
+ENTRYPOINT ["/bin/sh", "-c", "\
+set -e && \
+echo '=== Installing reFlutter ===' && \
+cd /t && \
+pip3 install wheel && \
+pip3 install . && \
+echo '=== Setting up depot_tools ===' && \
+rm -rf ${DEPOT_TOOLS_PATH} 2> /dev/null && \
+git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git ${DEPOT_TOOLS_PATH} && \
+echo '=== Cloning Flutter engine ===' && \
+rm -rf ${TEMP_ENGINE} 2> /dev/null && \
+git clone https://github.com/flutter/engine.git ${TEMP_ENGINE} && \
+cd ${TEMP_ENGINE} && \
+git config --global user.email 'reflutter@example.com' && \
+git config --global user.name 'reflutter' && \
+echo \"=== Checking out commit ${COMMIT} ===\" && \
+git fetch origin ${COMMIT} && \
+git checkout ${COMMIT} && \
+echo '=== Applying reFlutter patches ===' && \
+reflutter -b ${HASH_PATCH} -p && \
+echo 'reflutter' > REFLUTTER && \
+git add . && \
+git commit -am 'reflutter' || true && \
+echo '=== Setting up engine workspace ===' && \
+rm -rf ${ENGINE_PATH} 2> /dev/null && \
+mkdir -p ${ENGINE_PATH}/src && \
+cd ${ENGINE_PATH} && \
+echo 'solutions = [{\"managed\": False,\"name\": \"src/flutter\",\"url\": \"'${TEMP_ENGINE}'\",\"custom_deps\": {},\"deps_file\": \"DEPS\",\"safesync_url\": \"\",},]' > .gclient && \
+echo '=== Creating stub for pub_get_offline.py ===' && \
+mkdir -p ${ENGINE_PATH}/src/flutter/tools && \
+cat > ${ENGINE_PATH}/src/flutter/tools/pub_get_offline.py << 'PYTHON_END'
+#!/usr/bin/env python3
+import sys
+print('Skipping pub_get_offline.py (stub for older engine versions)')
+sys.exit(0)
+PYTHON_END
+chmod +x ${ENGINE_PATH}/src/flutter/tools/pub_get_offline.py && \
+echo '=== Running gclient sync (this will take a while) ===' && \
+gclient sync -D --no-history 2>&1 | tee /tmp/gclient.log || { \
+  echo 'WARNING: gclient sync encountered errors'; \
+  echo 'Checking for critical files...'; \
+  if [ ! -f src/flutter/tools/gn ]; then \
+    echo 'ERROR: GN tool not found at src/flutter/tools/gn'; \
+    echo 'Last 50 lines of gclient log:'; \
+    tail -50 /tmp/gclient.log; \
+    exit 1; \
+  fi; \
+  echo 'Critical files present, continuing despite warnings...'; \
+} && \
+echo '=== Applying patches to synced source ===' && \
+cd src/flutter && \
+reflutter -b ${HASH_PATCH} -p || echo 'WARNING: Patch reapplication had issues' && \
+cd ${ENGINE_PATH} && \
+echo '=== Verifying build environment ===' && \
+[ -f src/flutter/tools/gn ] || { echo 'ERROR: GN not found'; exit 1; } && \
+command -v ninja > /dev/null || { echo 'ERROR: Ninja not found'; exit 1; } && \
+echo '✓ Build prerequisites verified' && \
+echo \"=== Waiting ${WAIT} seconds for manual modifications ===\" && \
+sleep \${WAIT} && \
+export NINJA_SUMMARIZE_BUILD=1 && \
+if [ \"\${arm64}\" != \"0\" ]; then \
+  echo '=== Building ARM64 (this will take 3-5 hours) ===' && \
+  src/flutter/tools/gn --no-goma --android --android-cpu=arm64 --runtime-mode=release && \
+  ninja -C src/out/android_release_arm64 && \
+  [ -f src/out/android_release_arm64/lib.stripped/libflutter.so ] && \
+  cp src/out/android_release_arm64/lib.stripped/libflutter.so /libflutter_arm64.so && \
+  echo '✓ ARM64 build complete' && \
+  ls -lh /libflutter_arm64.so; \
+fi && \
+if [ \"\${arm}\" != \"0\" ]; then \
+  echo '=== Building ARM ===' && \
+  src/flutter/tools/gn --no-goma --android --android-cpu=arm --runtime-mode=release && \
+  ninja -C src/out/android_release && \
+  [ -f src/out/android_release/lib.stripped/libflutter.so ] && \
+  cp src/out/android_release/lib.stripped/libflutter.so /libflutter_arm.so && \
+  echo '✓ ARM build complete' && \
+  ls -lh /libflutter_arm.so; \
+fi && \
+if [ \"\${x64}\" != \"0\" ]; then \
+  echo '=== Building x64 ===' && \
+  src/flutter/tools/gn --no-goma --android --android-cpu=x64 --runtime-mode=release && \
+  ninja -C src/out/android_release_x64 && \
+  [ -f src/out/android_release_x64/lib.stripped/libflutter.so ] && \
+  cp src/out/android_release_x64/lib.stripped/libflutter.so /libflutter_x64.so && \
+  echo '✓ x64 build complete' && \
+  ls -lh /libflutter_x64.so; \
+fi && \
+cd / && \
+echo '=== Copying artifacts to /t/ ===' && \
+cp -va *.so /t/ 2>/dev/null && \
+echo '=== Build complete ===' && \
+ls -lh /t/*.so"]
+
+CMD ["bash"]
+DOCKERFILE_END
           
-          RUN apt-get update && \
-            DEBIAN_FRONTEND="noninteractive" apt-get install -y \
-            git git-svn git-man wget curl software-properties-common unzip \
-            python3-pip python3 lsb-release sudo apt-transport-https tzdata \
-            python3-pkgconfig default-jre default-jdk ninja-build && \
-            mkdir t
-          
-          ENTRYPOINT ["/bin/sh", "-c", "\
-          cd /t && \
-          pip3 install wheel && \
-          pip3 install . && \
-          rm -rf ${DEPOT_TOOLS_PATH} 2> /dev/null && \
-          git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git ${DEPOT_TOOLS_PATH} && \
-          rm -rf ${TEMP_ENGINE} 2> /dev/null && \
-          git clone https://github.com/flutter/flutter.git ${TEMP_ENGINE} && \
-          rm -rf ${ENGINE_PATH} 2> /dev/null && \
-          mkdir -p ${ENGINE_PATH} && \
-          cd ${TEMP_ENGINE} && \
-          git config --global user.email \"reflutter@example.com\" && \
-          git config --global user.name \"reflutter\" && \
-          git fetch origin ${COMMIT} && \
-          git reset --hard FETCH_HEAD && \
-          reflutter -b ${HASH_PATCH} -p && \
-          echo 'reflutter' > REFLUTTER && \
-          git add . && \
-          git commit -am \"reflutter\" && \
-          cd ${ENGINE_PATH} && \
-          echo 'solutions = [{\"managed\": False,\"name\": \".\",\"url\": \"'${TEMP_ENGINE}'\",\"custom_deps\": {},\"deps_file\": \"DEPS\",\"safesync_url\": \"\",},]' > .gclient && \
-          gclient sync && \
-          reflutter -b ${HASH_PATCH} -p && \
-          echo \"Wait... Change the source code...\" && \
-          sleep $WAIT && \
-          export NINJA_SUMMARIZE_BUILD=1 && \
-          if [ \"$arm64\" != \"0\" ]; then \
-            engine/src/flutter/tools/gn --no-goma --android --android-cpu=arm64 --runtime-mode=release && \
-            ninja -C engine/src/out/android_release_arm64 && \
-            cp engine/src/out/android_release_arm64/lib.stripped/libflutter.so /libflutter_arm64.so; \
-          fi && \
-          if [ \"$arm\" != \"0\" ]; then \
-            engine/src/flutter/tools/gn --no-goma --android --android-cpu=arm --runtime-mode=release && \
-            ninja -C engine/src/out/android_release && \
-            cp engine/src/out/android_release/lib.stripped/libflutter.so /libflutter_arm.so; \
-          fi && \
-          if [ \"$x64\" != \"0\" ]; then \
-            engine/src/flutter/tools/gn --no-goma --android --android-cpu=x64 --runtime-mode=release && \
-            ninja -C engine/src/out/android_release_x64 && \
-            cp engine/src/out/android_release_x64/lib.stripped/libflutter.so /libflutter_x64.so; \
-          fi && \
-          cd .. && \
-          cp -va *.so /t/"]
-          
-          CMD ["bash"]
-          DOCKERFILE_END
-          
-          echo "Modified Dockerfile created with ninja-build package"
+          echo "✓ Dockerfile created"
       
       - name: Build Docker image
         run: |
@@ -181,19 +224,21 @@ jobs:
         run: |
           cd reFlutter
           
-          echo "=== Building ARM64 only ==="
-          echo "This will take approximately 3-5 hours"
+          echo "=== Starting ARM64 Build ==="
+          echo "Engine Commit: ${{ inputs.engine_commit }}"
+          echo "Snapshot Hash: ${{ inputs.snapshot_hash }}"
+          echo "Estimated time: 3-5 hours"
           echo ""
           
-          # Start disk space monitoring in background
+          # Disk space monitoring
           (while true; do 
             echo "=== Disk Usage [$(date +%T)] ===" 
             df -h / | tail -n1
-            sleep 300  # Check every 5 minutes
+            sleep 300
           done) &
           MONITOR_PID=$!
           
-          # Run the build (ARM64 ONLY)
+          # Run the build
           docker run \
             -e WAIT=${{ inputs.wait_time }} \
             -e arm64=arm64-v8a \
@@ -205,74 +250,99 @@ jobs:
             -v "$(pwd):/t" \
             reflutter
           
-          # Stop monitoring
+          BUILD_EXIT_CODE=$?
+          
           kill $MONITOR_PID 2>/dev/null || true
+          
+          if [ $BUILD_EXIT_CODE -ne 0 ]; then
+            echo "❌ Build failed with exit code $BUILD_EXIT_CODE"
+            exit $BUILD_EXIT_CODE
+          fi
       
-      - name: List build output
+      - name: Verify build output
         run: |
-          echo "=== reFlutter directory contents ==="
-          ls -lah reFlutter/
-          echo ""
-          echo "=== Looking for .so files ==="
-          find reFlutter/ -name "*.so" -type f || echo "No .so files found"
-      
-      - name: Copy artifacts to output directory
-        run: |
+          echo "=== Checking for build artifacts ==="
           cd reFlutter
+          
           if [ -f libflutter_arm64.so ]; then
-            cp libflutter_arm64.so ${{ github.workspace }}/output/
-            echo "✓ Copied libflutter_arm64.so"
+            echo "✓ Found libflutter_arm64.so"
             ls -lh libflutter_arm64.so
+            file libflutter_arm64.so
           else
             echo "❌ libflutter_arm64.so not found!"
+            echo "Directory contents:"
+            ls -lah
+            echo ""
+            echo "Searching for .so files:"
+            find . -name "*.so" -type f 2>/dev/null || echo "No .so files found"
             exit 1
           fi
+      
+      - name: Copy artifacts
+        run: |
+          cd reFlutter
+          cp libflutter_arm64.so ${{ github.workspace }}/output/
           
-          # Create a build info file
           cat > ${{ github.workspace }}/output/build_info.txt << EOF
-          reFlutter ARM64 Build Information
-          ==================================
-          Snapshot Hash: ${{ inputs.snapshot_hash }}
-          Engine Commit: ${{ inputs.engine_commit }}
-          Build Date: $(date -u +"%Y-%m-%d %H:%M:%S UTC")
-          Architecture: ARM64 (arm64-v8a)
-          Runner: GitHub Actions
-          EOF
+reFlutter ARM64 Build Information
+==================================
+Snapshot Hash: ${{ inputs.snapshot_hash }}
+Engine Commit: ${{ inputs.engine_commit }}
+Build Date: $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+Architecture: ARM64 (arm64-v8a)
+Build Number: ${{ github.run_number }}
+Workflow: ${{ github.workflow }}
+
+File Information:
+$(ls -lh libflutter_arm64.so)
+$(file libflutter_arm64.so)
+
+Usage:
+Replace lib/arm64-v8a/libflutter.so in your Flutter APK with this patched version.
+EOF
           
           echo ""
-          echo "=== Final output directory ==="
+          echo "=== Output directory ==="
           ls -lah ${{ github.workspace }}/output/
+          cat ${{ github.workspace }}/output/build_info.txt
       
-      - name: Upload build artifacts
+      - name: Upload artifacts
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: reflutter-android-${{ inputs.snapshot_hash }}-${{ github.run_number }}
+          name: reflutter-arm64-${{ inputs.snapshot_hash }}-run${{ github.run_number }}
           path: output/*
           retention-days: 30
-          if-no-files-found: warn
+          if-no-files-found: error
       
       - name: Create Release
         if: success() && github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: build-${{ github.run_number }}
-          name: reFlutter ARM64 Build ${{ github.run_number }}
+          tag_name: build-${{ github.run_number }}-${{ inputs.snapshot_hash }}
+          name: reFlutter ARM64 - ${{ inputs.snapshot_hash }}
           body: |
             ## reFlutter Android ARM64 Build
             
-            **Configuration:**
+            **Build Configuration:**
             - 📱 Snapshot Hash: `${{ inputs.snapshot_hash }}`
             - 🔧 Engine Commit: `${{ inputs.engine_commit }}`
             - ⏱️ Wait Time: ${{ inputs.wait_time }}s
             - 🏗️ Architecture: ARM64 (arm64-v8a) only
+            - 📅 Build Date: ${{ github.event.repository.updated_at }}
             
-            **Files:**
-            - `libflutter_arm64.so` - ARM64 library for Android
-            - `build_info.txt` - Build metadata
+            **Artifacts:**
+            - `libflutter_arm64.so` - Patched ARM64 Flutter engine library
+            - `build_info.txt` - Build metadata and usage instructions
             
-            **Usage:**
-            Replace the `libflutter.so` in your Flutter APK's `lib/arm64-v8a/` directory with this patched version.
+            **Installation:**
+            1. Decompile your Flutter APK (use APKTool or similar)
+            2. Navigate to `lib/arm64-v8a/`
+            3. Replace `libflutter.so` with the downloaded `libflutter_arm64.so`
+            4. Rename it to `libflutter.so`
+            5. Recompile and sign your APK
+            
+            **Note:** This is a custom patched build for reverse engineering purposes.
           files: output/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -280,22 +350,25 @@ jobs:
       - name: Build summary
         if: always()
         run: |
-          echo "### reFlutter ARM64 Build Summary" >> $GITHUB_STEP_SUMMARY
+          echo "### 🔨 reFlutter ARM64 Build Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Configuration:**" >> $GITHUB_STEP_SUMMARY
           echo "- Snapshot Hash: \`${{ inputs.snapshot_hash }}\`" >> $GITHUB_STEP_SUMMARY
           echo "- Engine Commit: \`${{ inputs.engine_commit }}\`" >> $GITHUB_STEP_SUMMARY
           echo "- Wait Time: ${{ inputs.wait_time }}s" >> $GITHUB_STEP_SUMMARY
-          echo "- Architecture: ARM64 (arm64-v8a) only" >> $GITHUB_STEP_SUMMARY
+          echo "- Architecture: ARM64 (arm64-v8a)" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
+          
           if [ -f output/libflutter_arm64.so ]; then
             size=$(ls -lh output/libflutter_arm64.so | awk '{print $5}')
             echo "**✅ Build Successful**" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
             echo "**Built Artifact:**" >> $GITHUB_STEP_SUMMARY
             echo "- \`libflutter_arm64.so\` ($size)" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Download the artifact from the 'Artifacts' section above." >> $GITHUB_STEP_SUMMARY
           else
             echo "**❌ Build Failed**" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
-            echo "No ARM64 library was generated. Check the logs for errors." >> $GITHUB_STEP_SUMMARY
+            echo "No ARM64 library was generated. Check the build logs for errors." >> $GITHUB_STEP_SUMMARY
           fi
