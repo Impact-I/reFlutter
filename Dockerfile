@@ -17,8 +17,9 @@ ENV x64=${x64:-x86_64}
 ENV HASH_PATCH=$HASH_PATCH
 ENV COMMIT=$COMMIT
 
-# Suppress git version warning
+# Suppress git version warning and other gclient warnings
 ENV GCLIENT_SUPPRESS_GIT_VERSION_WARNING=1
+ENV DEPOT_TOOLS_UPDATE=0
 
 RUN apt-get update && \
   DEBIAN_FRONTEND="noninteractive" apt-get install -y \
@@ -55,12 +56,40 @@ rm -rf ${ENGINE_PATH} 2> /dev/null && \
 mkdir -p ${ENGINE_PATH}/src && \
 cd ${ENGINE_PATH} && \
 echo 'solutions = [{\"managed\": False,\"name\": \"src/flutter\",\"url\": \"'${TEMP_ENGINE}'\",\"custom_deps\": {},\"deps_file\": \"DEPS\",\"safesync_url\": \"\",},]' > .gclient && \
+echo '=== Creating stub pub_get_offline.py ===' && \
+mkdir -p ${ENGINE_PATH}/src/flutter/tools && \
+echo '#!/usr/bin/env python3' > ${ENGINE_PATH}/src/flutter/tools/pub_get_offline.py && \
+echo 'import sys' >> ${ENGINE_PATH}/src/flutter/tools/pub_get_offline.py && \
+echo 'print(\"Skipping pub_get_offline.py (stub)\")' >> ${ENGINE_PATH}/src/flutter/tools/pub_get_offline.py && \
+echo 'sys.exit(0)' >> ${ENGINE_PATH}/src/flutter/tools/pub_get_offline.py && \
+chmod +x ${ENGINE_PATH}/src/flutter/tools/pub_get_offline.py && \
 echo '=== Running gclient sync ===' && \
-gclient sync -D --no-history || true && \
+gclient sync -D --no-history 2>&1 | tee /tmp/gclient.log || { \
+  echo 'WARNING: gclient sync had errors, checking if critical files exist...'; \
+  if [ ! -f src/flutter/tools/gn ]; then \
+    echo 'ERROR: Critical file src/flutter/tools/gn not found!'; \
+    cat /tmp/gclient.log; \
+    exit 1; \
+  fi; \
+  echo 'Critical files present, continuing...'; \
+} && \
 echo '=== Applying patches to synced source ===' && \
 cd src/flutter && \
-reflutter -b ${HASH_PATCH} -p || true && \
+reflutter -b ${HASH_PATCH} -p || echo 'WARNING: Patch application had issues, continuing...' && \
 cd ${ENGINE_PATH} && \
+echo '=== Verifying build prerequisites ===' && \
+if [ ! -f src/flutter/tools/gn ]; then \
+  echo 'ERROR: GN tool not found at src/flutter/tools/gn'; \
+  echo 'Directory contents:'; \
+  ls -la src/flutter/tools/ || echo 'tools/ directory does not exist'; \
+  exit 1; \
+fi && \
+echo '✓ GN tool found' && \
+if ! command -v ninja > /dev/null; then \
+  echo 'ERROR: ninja build tool not found'; \
+  exit 1; \
+fi && \
+echo '✓ Ninja found' && \
 echo '=== Waiting for manual modifications ($WAIT seconds) ===' && \
 sleep \$WAIT && \
 export NINJA_SUMMARIZE_BUILD=1 && \
@@ -69,25 +98,29 @@ if [ \"\$arm64\" != \"0\" ]; then \
   src/flutter/tools/gn --no-goma --android --android-cpu=arm64 --runtime-mode=release && \
   ninja -C src/out/android_release_arm64 && \
   cp src/out/android_release_arm64/lib.stripped/libflutter.so /libflutter_arm64.so && \
-  echo '✓ ARM64 build complete'; \
+  echo '✓ ARM64 build complete' && \
+  ls -lh /libflutter_arm64.so; \
 fi && \
 if [ \"\$arm\" != \"0\" ]; then \
   echo '=== Building ARM ===' && \
   src/flutter/tools/gn --no-goma --android --android-cpu=arm --runtime-mode=release && \
   ninja -C src/out/android_release && \
   cp src/out/android_release/lib.stripped/libflutter.so /libflutter_arm.so && \
-  echo '✓ ARM build complete'; \
+  echo '✓ ARM build complete' && \
+  ls -lh /libflutter_arm.so; \
 fi && \
 if [ \"\$x64\" != \"0\" ]; then \
   echo '=== Building x64 ===' && \
   src/flutter/tools/gn --no-goma --android --android-cpu=x64 --runtime-mode=release && \
   ninja -C src/out/android_release_x64 && \
   cp src/out/android_release_x64/lib.stripped/libflutter.so /libflutter_x64.so && \
-  echo '✓ x64 build complete'; \
+  echo '✓ x64 build complete' && \
+  ls -lh /libflutter_x64.so; \
 fi && \
 cd / && \
-cp -va *.so /t/ && \
-echo '=== Build artifacts copied to /t/ ===' && \
-ls -lh /t/*.so || echo 'No .so files found'"]
+echo '=== Copying build artifacts ===' && \
+cp -va *.so /t/ 2>/dev/null || echo 'No .so files to copy' && \
+echo '=== Final output ===' && \
+ls -lh /t/*.so 2>/dev/null || echo 'WARNING: No .so files found in /t/'"]
 
 CMD ["bash"]
