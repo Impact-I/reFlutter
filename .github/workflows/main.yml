@@ -187,7 +187,7 @@ jobs:
             -e WAIT=${{ inputs.wait_time }} \
             -e arm64=0 \
             -e arm=0 \
-            -e x64=x86_64 \
+            -e x64=1 \
             -e HASH_PATCH=${{ inputs.snapshot_hash }} \
             -e COMMIT=${{ inputs.engine_commit }} \
             --rm \
