@@ -1,4 +1,4 @@
-name: Build reFlutter Android ARM64
+name: Build reFlutter Android x86_64
 
 on:
   workflow_dispatch:
@@ -165,9 +165,9 @@ jobs:
           docker build -t reflutter \
             --build-arg HASH_PATCH=${{ inputs.snapshot_hash }} \
             --build-arg COMMIT=${{ inputs.engine_commit }} \
-            --build-arg arm64=arm64-v8a \
+            --build-arg arm64=0 \
             --build-arg arm=0 \
-            --build-arg x64=0 \
+            --build-arg x64=x86_64 \
             -f Dockerfile .
       
       - name: Create output directory
@@ -185,9 +185,9 @@ jobs:
           
           docker run \
             -e WAIT=${{ inputs.wait_time }} \
-            -e arm64=arm64-v8a \
+            -e arm64=0 \
             -e arm=0 \
-            -e x64=0 \
+            -e x64=x86_64 \
             -e HASH_PATCH=${{ inputs.snapshot_hash }} \
             -e COMMIT=${{ inputs.engine_commit }} \
             --rm \
@@ -199,52 +199,52 @@ jobs:
       - name: Copy artifacts
         run: |
           cd reFlutter
-          if [ -f libflutter_arm64.so ]; then
-            cp libflutter_arm64.so ../output/
-            echo "✓ Copied libflutter_arm64.so"
-            ls -lh ../output/libflutter_arm64.so
+          if [ -f libflutter_x64.so ]; then
+            cp libflutter_x64.so ../output/
+            echo "✓ Copied libflutter_x64.so"
+            ls -lh ../output/libflutter_x64.so
           else
-            echo "❌ Build failed - libflutter_arm64.so not found"
+            echo "❌ Build failed - libflutter_x64.so not found"
             ls -lah
             exit 1
           fi
           
           cat > ../output/build_info.txt << EOF
-          reFlutter ARM64 Build
+          reFlutter x86_64 Build
           =====================
           Snapshot Hash: ${{ inputs.snapshot_hash }}
           Engine Commit: ${{ inputs.engine_commit }}
           Build Date: $(date -u)
-          Architecture: ARM64 (arm64-v8a)
+          Architecture: x86_64
           
           Usage:
           1. Decompile your Flutter APK
-          2. Replace lib/arm64-v8a/libflutter.so with this file
+          2. Replace lib/x86_64/libflutter.so with this file
           3. Recompile and sign the APK
           EOF
       
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: reflutter-arm64-${{ inputs.snapshot_hash }}
+          name: reflutter-x86_64-${{ inputs.snapshot_hash }}
           path: output/*
           retention-days: 30
       
       - name: Build summary
         if: always()
         run: |
-          echo "### reFlutter ARM64 Build" >> $GITHUB_STEP_SUMMARY
+          echo "### reFlutter x86_64 Build" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Configuration:**" >> $GITHUB_STEP_SUMMARY
           echo "- Snapshot Hash: \`${{ inputs.snapshot_hash }}\`" >> $GITHUB_STEP_SUMMARY
           echo "- Engine Commit: \`${{ inputs.engine_commit }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "- Architecture: ARM64 only" >> $GITHUB_STEP_SUMMARY
+          echo "- Architecture: x86_64 only" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           
-          if [ -f output/libflutter_arm64.so ]; then
-            size=$(ls -lh output/libflutter_arm64.so | awk '{print $5}')
+          if [ -f output/libflutter_x64.so ]; then
+            size=$(ls -lh output/libflutter_x64.so | awk '{print $5}')
             echo "**✅ Build Successful**" >> $GITHUB_STEP_SUMMARY
-            echo "- \`libflutter_arm64.so\` ($size)" >> $GITHUB_STEP_SUMMARY
+            echo "- \`libflutter_x64.so\` ($size)" >> $GITHUB_STEP_SUMMARY
           else
             echo "**❌ Build Failed**" >> $GITHUB_STEP_SUMMARY
           fi
