@@ -22,7 +22,7 @@ if len(sys.argv) != 2:
 
 def is_hash_valid(string_hash: str) -> bool:
     return (
-        get(f"https://github.com/flutter/engine/commit/{string_hash}").status_code
+        get(f"https://github.com/flutter/flutter/commit/{string_hash}").status_code
         == 200
     )
 

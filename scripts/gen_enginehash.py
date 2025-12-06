@@ -9,7 +9,10 @@ from zipfile import ZipFile
 
 from requests import get
 
-from src.utils import elff as ELFF
+import sys
+
+sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../reflutter")
+from utils import elff as ELFF
 
 release_url = (
     "https://storage.googleapis.com/flutter_infra_release/releases/releases_linux.json"
@@ -54,23 +57,7 @@ with open(log_file_path, "w") as f:
     f.write("version,Engine_commit,Snapshot_Hash\n")
 
 if isdir(flutter_path):
-    # update the branch
-    cli(
-        [
-            "cd",
-            flutter_path,
-            "&&",
-            "git",
-            "reset",
-            "--hard",
-            "HEAD",
-            "&&",
-            "git",
-            "pull",
-            "origin",
-            "master",
-        ]
-    )
+    rmtree(flutter_path)
 else:
     cli(["git", "clone", "https://github.com/flutter/flutter.git", flutter_path])
 
