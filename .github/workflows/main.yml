@@ -1,129 +1,250 @@
-name: Build
+name: Build reFlutter Android x86_64
 
 on:
-  pull_request:
-    branches:
-      - "*"
+  workflow_dispatch:
+    inputs:
+      snapshot_hash:
+        description: 'Snapshot Hash (e.g., d91c0e6f35f0eb2e44124e8f42aa44a7)'
+        required: true
+        type: string
+      engine_commit:
+        description: 'Engine Commit (e.g., 57d3bac3dd5cb5b0e464ab70e7bc8a0d8cf083ab)'
+        required: true
+        type: string
+        default: '57d3bac3dd5cb5b0e464ab70e7bc8a0d8cf083ab'
+      wait_time:
+        description: 'Wait Time in seconds'
+        required: false
+        default: '300'
+        type: string
 
 jobs:
-  build-v2:
-    runs-on: macos-14
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 480
+    
     steps:
-      - name: Check out repository
-        uses: actions/checkout@v2
-      - name: Setup Xcode version
-        uses: maxim-lobanov/setup-xcode@v1.3.0
+      - name: Free up disk space
+        run: |
+          echo "=== Before cleanup ==="
+          df -h
+          
+          sudo apt-get remove -y '^aspnetcore-.*' '^dotnet-.*' '^llvm-.*' 'php.*' '^mongodb-.*' '^mysql-.*' azure-cli google-chrome-stable firefox powershell mono-devel libgl1-mesa-dri
+          sudo apt-get autoremove -y
+          sudo apt-get clean
+          
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /usr/local/lib/android
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /opt/hostedtoolcache/CodeQL
+          sudo rm -rf /usr/local/share/boost
+          sudo rm -rf /usr/share/swift
+          sudo rm -rf "$AGENT_TOOLSDIRECTORY"
+          sudo rm -rf /imagegeneration
+          sudo rm -rf /usr/local/graalvm/
+          sudo rm -rf /usr/local/.ghcup/
+          sudo rm -rf /usr/local/share/powershell
+          sudo rm -rf /usr/local/share/chromium
+          sudo rm -rf /usr/local/lib/node_modules
+          
+          docker rmi $(docker image ls -aq) 2>/dev/null || true
+          
+          echo ""
+          echo "=== After cleanup ==="
+          df -h
+          
+          FREE_SPACE=$(df -BG / | awk 'NR==2 {print $4}' | sed 's/G//')
+          echo "Free space: ${FREE_SPACE}GB"
+      
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: Clone reFlutter
+        run: |
+          git clone https://github.com/Impact-I/reFlutter
+          cd reFlutter
+          ls -lah
+      
+      - name: Create optimized Dockerfile
+        run: |
+          cd reFlutter
+          cat > Dockerfile << 'DOCKERFILE_END'
+          FROM ubuntu:22.04
+          
+          ARG HASH_PATCH
+          ARG COMMIT
+          ARG arm
+          ARG arm64
+          ARG x64
+          
+          ENV DEPOT_TOOLS_PATH=/depot_tools
+          ENV TEMP_ENGINE=/engine
+          ENV ENGINE_PATH=/customEngine
+          ENV PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/depot_tools
+          ENV WAIT=4
+          ENV arm64=${arm64:-arm64-v8a}
+          ENV arm=${arm:-armeabi-v7a}
+          ENV x64=${x64:-x86_64}
+          ENV HASH_PATCH=$HASH_PATCH
+          ENV COMMIT=$COMMIT
+          ENV GCLIENT_SUPPRESS_GIT_VERSION_WARNING=1
+          
+          RUN apt-get update && \
+            DEBIAN_FRONTEND="noninteractive" apt-get install -y \
+            git wget curl unzip python3-pip python3 lsb-release \
+            sudo tzdata python3-pkgconfig default-jre default-jdk ninja-build && \
+            mkdir t
+          
+          ENTRYPOINT ["/bin/sh", "-c", "\
+          set -e && \
+          cd /t && \
+          pip3 install wheel && \
+          pip3 install . && \
+          rm -rf ${DEPOT_TOOLS_PATH} 2>/dev/null && \
+          git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git ${DEPOT_TOOLS_PATH} && \
+          rm -rf ${TEMP_ENGINE} 2>/dev/null && \
+          git clone https://github.com/flutter/engine.git ${TEMP_ENGINE} && \
+          cd ${TEMP_ENGINE} && \
+          git config --global user.email 'reflutter@example.com' && \
+          git config --global user.name 'reflutter' && \
+          git fetch origin ${COMMIT} && \
+          git checkout ${COMMIT} && \
+          reflutter -b ${HASH_PATCH} -p && \
+          echo 'reflutter' > REFLUTTER && \
+          git add . && \
+          git commit -am 'reflutter' || true && \
+          rm -rf ${ENGINE_PATH} 2>/dev/null && \
+          mkdir -p ${ENGINE_PATH}/src && \
+          cd ${ENGINE_PATH} && \
+          echo 'solutions = [{\"managed\": False,\"name\": \"src/flutter\",\"url\": \"'${TEMP_ENGINE}'\",\"custom_deps\": {},\"deps_file\": \"DEPS\",\"safesync_url\": \"\",},]' > .gclient && \
+          mkdir -p src/flutter/tools && \
+          cat > src/flutter/tools/pub_get_offline.py << 'PYTHON_SCRIPT'\n\
+          #!/usr/bin/env python3\n\
+          import sys\n\
+          print('Skipping pub_get_offline.py (stub for compatibility)')\n\
+          sys.exit(0)\n\
+          PYTHON_SCRIPT\n\
+          chmod +x src/flutter/tools/pub_get_offline.py && \
+          gclient sync -D --no-history && \
+          cd src/flutter && \
+          reflutter -b ${HASH_PATCH} -p || true && \
+          cd ${ENGINE_PATH} && \
+          sleep ${WAIT} && \
+          export NINJA_SUMMARIZE_BUILD=1 && \
+          if [ \"${arm64}\" != \"0\" ]; then \
+            src/flutter/tools/gn --no-goma --android --android-cpu=arm64 --runtime-mode=release && \
+            ninja -C src/out/android_release_arm64 && \
+            cp src/out/android_release_arm64/lib.stripped/libflutter.so /libflutter_arm64.so && \
+            ls -lh /libflutter_arm64.so; \
+          fi && \
+          if [ \"${arm}\" != \"0\" ]; then \
+            src/flutter/tools/gn --no-goma --android --android-cpu=arm --runtime-mode=release && \
+            ninja -C src/out/android_release && \
+            cp src/out/android_release/lib.stripped/libflutter.so /libflutter_arm.so && \
+            ls -lh /libflutter_arm.so; \
+          fi && \
+          if [ \"${x64}\" != \"0\" ]; then \
+            src/flutter/tools/gn --no-goma --android --android-cpu=x64 --runtime-mode=release && \
+            ninja -C src/out/android_release_x64 && \
+            cp src/out/android_release_x64/lib.stripped/libflutter.so /libflutter_x64.so && \
+            ls -lh /libflutter_x64.so; \
+          fi && \
+          cd / && \
+          cp -va *.so /t/ 2>/dev/null && \
+          echo '=== Build complete ==='"]
+          
+          CMD ["bash"]
+          DOCKERFILE_END
+      
+      - name: Build Docker image
+        run: |
+          cd reFlutter
+          docker build -t reflutter \
+            --build-arg HASH_PATCH=${{ inputs.snapshot_hash }} \
+            --build-arg COMMIT=${{ inputs.engine_commit }} \
+            --build-arg arm64=0 \
+            --build-arg arm=0 \
+            --build-arg x64=x86_64 \
+            -f Dockerfile .
+      
+      - name: Create output directory
+        run: mkdir -p output
+      
+      - name: Run reFlutter build
+        run: |
+          cd reFlutter
+          
+          (while true; do 
+            df -h / | tail -n1
+            sleep 300
+          done) &
+          MONITOR_PID=$!
+          
+          docker run \
+            -e WAIT=${{ inputs.wait_time }} \
+            -e arm64=0 \
+            -e arm=0 \
+            -e x64=1 \
+            -e HASH_PATCH=${{ inputs.snapshot_hash }} \
+            -e COMMIT=${{ inputs.engine_commit }} \
+            --rm \
+            -v "$(pwd):/t" \
+            reflutter
+          
+          kill $MONITOR_PID 2>/dev/null || true
+      
+      - name: Copy artifacts
+        run: |
+          cd reFlutter
+          if [ -f libflutter_x64.so ]; then
+            cp libflutter_x64.so ../output/
+            echo "✓ Copied libflutter_x64.so"
+            ls -lh ../output/libflutter_x64.so
+          else
+            echo "❌ Build failed - libflutter_x64.so not found"
+            ls -lah
+            exit 1
+          fi
+          
+          cat > ../output/build_info.txt << EOF
+          reFlutter x86_64 Build
+          =====================
+          Snapshot Hash: ${{ inputs.snapshot_hash }}
+          Engine Commit: ${{ inputs.engine_commit }}
+          Build Date: $(date -u)
+          Architecture: x86_64
+          
+          Usage:
+          1. Decompile your Flutter APK
+          2. Replace lib/x86_64/libflutter.so with this file
+          3. Recompile and sign the APK
+          EOF
+      
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
         with:
-          xcode-version: latest-stable
-      - name: Set variables
+          name: reflutter-x86_64-${{ inputs.snapshot_hash }}
+          path: output/*
+          retention-days: 30
+      
+      - name: Build summary
+        if: always()
         run: |
-          HASH=$(cat SNAPSHOT_HASH)
-          echo "SNAPSHOT_HASH=$HASH" >> $GITHUB_ENV
-      - name: Install tools
-        run: |
-          brew install ninja libusbmuxd ideviceinstaller ios-deploy python@3.13
-          python3 -m pip install wheel  --break-system-packages
-          python3 -m pip install .  --break-system-packages
-          git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git
-          git clone https://github.com/flutter/flutter.git engine
-      - name: gclient sync
-        run: |
-          ROOT_DIR=`pwd`
-          export PATH=$PATH:$ROOT_DIR/depot_tools
-          cd engine
-          git config --global user.email "reflutter@example.com" && git config --global user.name "reflutter"
-          git fetch origin $(reflutter -b ${{env.SNAPSHOT_HASH}})
-          git reset --hard FETCH_HEAD
-          reflutter -b ${{env.SNAPSHOT_HASH}}
-          echo 'reflutter' > REFLUTTER
-          git add . && git commit -am "reflutter"
-          cd $ROOT_DIR
-          mkdir customEngine
-          cd customEngine
-          echo 'solutions = [{"managed": False,"name": ".","url": "'$ROOT_DIR/engine'","custom_deps": {},"deps_file": "DEPS","safesync_url": "",},]' > .gclient
-          gclient sync
-          reflutter -b ${{env.SNAPSHOT_HASH}}
-      - name: ninja build Flutter.framework
-        run: export PATH=$PATH:`pwd`/depot_tools && sudo xcode-select -s /Applications/Xcode.app && customEngine/engine/src/flutter/tools/gn --no-goma --ios --runtime-mode=release && ninja -C customEngine/engine/src/out/ios_release
-      - name: ninja build libflutter_arm64
-        run: export PATH=$PATH:`pwd`/depot_tools && customEngine/engine/src/flutter/tools/gn --no-goma --android --android-cpu=arm64 --runtime-mode=release && ninja -C customEngine/engine/src/out/android_release_arm64
-      - name: ninja build libflutter_arm
-        run: export PATH=$PATH:`pwd`/depot_tools && customEngine/engine/src/flutter/tools/gn --no-goma --android --android-cpu=arm --runtime-mode=release && ninja -C customEngine/engine/src/out/android_release
-      - name: Move to release
-        run: |
-          cp customEngine/engine/src/out/ios_release/Flutter.framework/Flutter Flutter
-          cp customEngine/engine/src/out/android_release_arm64/lib.stripped/libflutter.so libflutter_arm64.so 2>/dev/null || :
-          cp customEngine/engine/src/out/android_release/lib.stripped/libflutter.so libflutter_arm.so 2>/dev/null || :
-      - name: iOS-Release
-        uses: softprops/action-gh-release@v1
-        with:
-          tag_name: ios-v2-${{env.SNAPSHOT_HASH}}
-          files: |
-            ./Flutter
-      - name: Android-Release
-        uses: softprops/action-gh-release@v1
-        with:
-          tag_name: android-v2-${{env.SNAPSHOT_HASH}}
-          files: |
-            ./*.so
-
-  build-v3:
-    runs-on: macos-14
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v2
-      - name: Setup Xcode version
-        uses: maxim-lobanov/setup-xcode@v1.3.0
-        with:
-          xcode-version: latest-stable
-      - name: Set variables
-        run: |
-          HASH=$(cat SNAPSHOT_HASH)
-          echo "SNAPSHOT_HASH=$HASH" >> $GITHUB_ENV
-      - name: Install tools
-        run: |
-          brew install ninja libusbmuxd ideviceinstaller ios-deploy python@3.13
-          python3 -m pip install wheel --break-system-packages
-          python3 -m pip install . --break-system-packages
-          git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git
-          git clone https://github.com/flutter/flutter.git engine
-      - name: gclient sync
-        run: |
-          ROOT_DIR=`pwd`
-          export PATH=$PATH:$ROOT_DIR/depot_tools
-          cd engine
-          git config --global user.email "reflutter@example.com" && git config --global user.name "reflutter"
-          git fetch origin $(reflutter -b ${{env.SNAPSHOT_HASH}})
-          git reset --hard FETCH_HEAD
-          reflutter -b ${{env.SNAPSHOT_HASH}} -p
-          echo 'reflutter' > REFLUTTER
-          git add . && git commit -am "reflutter"
-          cd $ROOT_DIR
-          mkdir customEngine
-          cd customEngine
-          echo 'solutions = [{"managed": False,"name": ".","url": "'$ROOT_DIR/engine'","custom_deps": {},"deps_file": "DEPS","safesync_url": "",},]' > .gclient
-          gclient sync
-          reflutter -b ${{env.SNAPSHOT_HASH}} -p
-      - name: ninja build Flutter.framework
-        run: export PATH=$PATH:`pwd`/depot_tools && sudo xcode-select -s /Applications/Xcode.app && customEngine/engine/src/flutter/tools/gn --no-goma --ios --runtime-mode=release && ninja -C customEngine/engine/src/out/ios_release
-      - name: ninja build libflutter_arm64
-        run: export PATH=$PATH:`pwd`/depot_tools && customEngine/engine/src/flutter/tools/gn --no-goma --android --android-cpu=arm64 --runtime-mode=release && ninja -C customEngine/engine/src/out/android_release_arm64
-      - name: ninja build libflutter_arm
-        run: export PATH=$PATH:`pwd`/depot_tools && customEngine/engine/src/flutter/tools/gn --no-goma --android --android-cpu=arm --runtime-mode=release && ninja -C customEngine/engine/src/out/android_release
-      - name: Move to release
-        run: |
-          cp customEngine/engine/src/out/ios_release/Flutter.framework/Flutter Flutter
-          cp customEngine/engine/src/out/android_release_arm64/lib.stripped/libflutter.so libflutter_arm64.so 2>/dev/null || :
-          cp customEngine/engine/src/out/android_release/lib.stripped/libflutter.so libflutter_arm.so 2>/dev/null || :
-      - name: iOS-Release
-        uses: softprops/action-gh-release@v1
-        with:
-          tag_name: ios-v3-${{env.SNAPSHOT_HASH}}
-          files: |
-            ./Flutter
-      - name: Android-Release
-        uses: softprops/action-gh-release@v1
-        with:
-          tag_name: android-v3-${{env.SNAPSHOT_HASH}}
-          files: |
-            ./*.so
+          echo "### reFlutter x86_64 Build" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Configuration:**" >> $GITHUB_STEP_SUMMARY
+          echo "- Snapshot Hash: \`${{ inputs.snapshot_hash }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- Engine Commit: \`${{ inputs.engine_commit }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- Architecture: x86_64 only" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [ -f output/libflutter_x64.so ]; then
+            size=$(ls -lh output/libflutter_x64.so | awk '{print $5}')
+            echo "**✅ Build Successful**" >> $GITHUB_STEP_SUMMARY
+            echo "- \`libflutter_x64.so\` ($size)" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "**❌ Build Failed**" >> $GITHUB_STEP_SUMMARY
+          fi

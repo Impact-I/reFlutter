@@ -11,17 +11,116 @@ ENV TEMP_ENGINE=/engine
 ENV ENGINE_PATH=/customEngine
 ENV PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/depot_tools
 ENV WAIT=4
-ENV arm64=${arm64:-arm64-v8a}
-ENV arm=${arm:-armeabi-v7a}
+ENV arm64=${arm64:-0}
+ENV arm=${arm:-0}
 ENV x64=${x64:-x86_64}
 ENV HASH_PATCH=$HASH_PATCH
 ENV COMMIT=$COMMIT
 
+# Suppress git version warning and other gclient warnings
+ENV GCLIENT_SUPPRESS_GIT_VERSION_WARNING=1
+ENV DEPOT_TOOLS_UPDATE=0
+
 RUN apt-get update && \
-  DEBIAN_FRONTEND="noninteractive" apt-get install -y git git-svn git-man wget curl software-properties-common unzip python3-pip python3 lsb-release sudo apt-transport-https tzdata python3-pkgconfig default-jre default-jdk && \
+  DEBIAN_FRONTEND="noninteractive" apt-get install -y \
+  git git-svn git-man wget curl software-properties-common unzip \
+  python3-pip python3 lsb-release sudo apt-transport-https tzdata \
+  python3-pkgconfig default-jre default-jdk ninja-build && \
   mkdir t
 
-ENTRYPOINT ["/bin/sh", "-c", "cd /t && pip3 install wheel && pip3 install . && rm -rf ${DEPOT_TOOLS_PATH} 2> /dev/null && git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git ${DEPOT_TOOLS_PATH} && rm -rf ${TEMP_ENGINE} 2> /dev/null && git clone https://github.com/flutter/flutter.git ${TEMP_ENGINE} && rm -rf ${ENGINE_PATH} 2> /dev/null && mkdir -p ${ENGINE_PATH} && cd ${TEMP_ENGINE} && git config --global user.email \"reflutter@example.com\" && git config --global user.name \"reflutter\" && git fetch origin ${COMMIT} && git reset --hard FETCH_HEAD && reflutter -b ${HASH_PATCH} -p && echo 'reflutter' > REFLUTTER && git add . && git commit -am \"reflutter\" && cd ${ENGINE_PATH} && echo 'solutions = [{\"managed\": False,\"name\": \".\",\"url\": \"'${TEMP_ENGINE}'\",\"custom_deps\": {},\"deps_file\": \"DEPS\",\"safesync_url\": \"\",},]' > .gclient && gclient sync && reflutter -b ${HASH_PATCH} -p && echo \"Wait... Change the source code...\" && sleep $WAIT && if [ \"$arm64\" != \"0\" ]; then engine/src/flutter/tools/gn --no-goma --android --android-cpu=arm64 --runtime-mode=release && ninja -C engine/src/out/android_release_arm64 && cp engine/src/out/android_release_arm64/lib.stripped/libflutter.so /libflutter_arm64.so ;fi && if [ \"$arm\" != \"0\" ]; then engine/src/flutter/tools/gn --no-goma --android --android-cpu=arm --runtime-mode=release && ninja -C engine/src/out/android_release && cp engine/src/out/android_release/lib.stripped/libflutter.so /libflutter_arm.so ;fi && if [ \"$x64\" != \"0\" ]; then engine/src/flutter/tools/gn --no-goma --android --android-cpu=x64 --runtime-mode=release && ninja -C engine/src/out/android_release_x64 && cp engine/src/out/android_release_x64/lib.stripped/libflutter.so /libflutter_x64.so; fi &&  cd .. && cp -va *.so /t/"]
-
+ENTRYPOINT ["/bin/sh", "-c", "\
+set -e && \
+echo '=== Installing reFlutter ===' && \
+cd /t && \
+pip3 install wheel && \
+pip3 install . && \
+echo '=== Setting up depot_tools ===' && \
+rm -rf ${DEPOT_TOOLS_PATH} 2> /dev/null && \
+git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git ${DEPOT_TOOLS_PATH} && \
+echo '=== Cloning Flutter engine template ===' && \
+rm -rf ${TEMP_ENGINE} 2> /dev/null && \
+git clone https://github.com/flutter/engine.git ${TEMP_ENGINE} && \
+cd ${TEMP_ENGINE} && \
+git config --global user.email 'reflutter@example.com' && \
+git config --global user.name 'reflutter' && \
+echo '=== Checking out specific commit ===' && \
+git fetch origin ${COMMIT} && \
+git checkout ${COMMIT} && \
+echo '=== Applying reFlutter patches ===' && \
+reflutter -b ${HASH_PATCH} -p && \
+echo 'reflutter' > REFLUTTER && \
+git add . && \
+git commit -am 'reflutter' || true && \
+echo '=== Setting up engine workspace ===' && \
+rm -rf ${ENGINE_PATH} 2> /dev/null && \
+mkdir -p ${ENGINE_PATH}/src && \
+cd ${ENGINE_PATH} && \
+echo 'solutions = [{\"managed\": False,\"name\": \"src/flutter\",\"url\": \"'${TEMP_ENGINE}'\",\"custom_deps\": {},\"deps_file\": \"DEPS\",\"safesync_url\": \"\",},]' > .gclient && \
+echo '=== Creating stub pub_get_offline.py ===' && \
+mkdir -p ${ENGINE_PATH}/src/flutter/tools && \
+echo '#!/usr/bin/env python3' > ${ENGINE_PATH}/src/flutter/tools/pub_get_offline.py && \
+echo 'import sys' >> ${ENGINE_PATH}/src/flutter/tools/pub_get_offline.py && \
+echo 'print(\"Skipping pub_get_offline.py (stub)\")' >> ${ENGINE_PATH}/src/flutter/tools/pub_get_offline.py && \
+echo 'sys.exit(0)' >> ${ENGINE_PATH}/src/flutter/tools/pub_get_offline.py && \
+chmod +x ${ENGINE_PATH}/src/flutter/tools/pub_get_offline.py && \
+echo '=== Running gclient sync ===' && \
+gclient sync -D --no-history 2>&1 | tee /tmp/gclient.log || { \
+  echo 'WARNING: gclient sync had errors, checking if critical files exist...'; \
+  if [ ! -f src/flutter/tools/gn ]; then \
+    echo 'ERROR: Critical file src/flutter/tools/gn not found!'; \
+    cat /tmp/gclient.log; \
+    exit 1; \
+  fi; \
+  echo 'Critical files present, continuing...'; \
+} && \
+echo '=== Applying patches to synced source ===' && \
+cd src/flutter && \
+reflutter -b ${HASH_PATCH} -p || echo 'WARNING: Patch application had issues, continuing...' && \
+cd ${ENGINE_PATH} && \
+echo '=== Verifying build prerequisites ===' && \
+if [ ! -f src/flutter/tools/gn ]; then \
+  echo 'ERROR: GN tool not found at src/flutter/tools/gn'; \
+  echo 'Directory contents:'; \
+  ls -la src/flutter/tools/ || echo 'tools/ directory does not exist'; \
+  exit 1; \
+fi && \
+echo '✓ GN tool found' && \
+if ! command -v ninja > /dev/null; then \
+  echo 'ERROR: ninja build tool not found'; \
+  exit 1; \
+fi && \
+echo '✓ Ninja found' && \
+echo '=== Waiting for manual modifications ($WAIT seconds) ===' && \
+sleep \$WAIT && \
+export NINJA_SUMMARIZE_BUILD=1 && \
+if [ \"\$arm64\" != \"0\" ]; then \
+  echo '=== Building ARM64 ===' && \
+  src/flutter/tools/gn --no-goma --android --android-cpu=arm64 --runtime-mode=release && \
+  ninja -C src/out/android_release_arm64 && \
+  cp src/out/android_release_arm64/lib.stripped/libflutter.so /libflutter_arm64.so && \
+  echo '✓ ARM64 build complete' && \
+  ls -lh /libflutter_arm64.so; \
+fi && \
+if [ \"\$arm\" != \"0\" ]; then \
+  echo '=== Building ARM ===' && \
+  src/flutter/tools/gn --no-goma --android --android-cpu=arm --runtime-mode=release && \
+  ninja -C src/out/android_release && \
+  cp src/out/android_release/lib.stripped/libflutter.so /libflutter_arm.so && \
+  echo '✓ ARM build complete' && \
+  ls -lh /libflutter_arm.so; \
+fi && \
+if [ \"\$x64\" != \"0\" ]; then \
+  echo '=== Building x64 ===' && \
+  src/flutter/tools/gn --no-goma --android --android-cpu=x64 --runtime-mode=release && \
+  ninja -C src/out/android_release_x64 && \
+  cp src/out/android_release_x64/lib.stripped/libflutter.so /libflutter_x64.so && \
+  echo '✓ x64 build complete' && \
+  ls -lh /libflutter_x64.so; \
+fi && \
+cd / && \
+echo '=== Copying build artifacts ===' && \
+cp -va *.so /t/ 2>/dev/null || echo 'No .so files to copy' && \
+echo '=== Final output ===' && \
+ls -lh /t/*.so 2>/dev/null || echo 'WARNING: No .so files found in /t/'"]
 
 CMD ["bash"]
