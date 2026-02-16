@@ -58,8 +58,8 @@ with open(log_file_path, "w") as f:
 
 if isdir(flutter_path):
     rmtree(flutter_path)
-else:
-    cli(["git", "clone", "https://github.com/flutter/flutter.git", flutter_path])
+
+cli(["git", "clone", "https://github.com/flutter/flutter.git", flutter_path])
 
 if isdir(flutter_path):
     for data in get(release_url).json()["releases"]:
