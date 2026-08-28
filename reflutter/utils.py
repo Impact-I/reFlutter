@@ -99,23 +99,65 @@ def check_libapp_hash(libapp_hash: str) -> int | None:
     return len(resp) + 1 - _index
 
 
+_ENGINEHASH_CACHE = None
+
+
+def _known_snapshot_hashes() -> set:
+    """Return set of known snapshot hashes from reFlutter's enginehash.csv (cached)."""
+    global _ENGINEHASH_CACHE
+    if _ENGINEHASH_CACHE is None:
+        hashes = set()
+        try:
+            resp = (
+                urlopen(
+                    "https://raw.githubusercontent.com/Impact-I/reFlutter/main/enginehash.csv",
+                    timeout=20,
+                )
+                .read()
+                .decode("utf-8", "ignore")
+            )
+            for line in resp.splitlines():
+                parts = line.split(",")
+                if len(parts) >= 3:
+                    h = parts[2].strip().lower()
+                    if re.fullmatch(r"[a-f0-9]{32}", h):
+                        hashes.add(h)
+        except Exception:
+            pass
+        _ENGINEHASH_CACHE = hashes
+    return _ENGINEHASH_CACHE
+
+
 def elff(fname: str) -> str:
-    libapp_hash = ""
-    min = 32
-    f = open(fname, errors="ignore")
-    result = ""
-    for c in f.read():
-        if c in string.printable:
-            result += c
-            continue
-        if len(result) >= min:
-            hashT = re.findall(r"([a-f\d]{32})", result)
-            if len(hashT) > 0:
-                f.close()
-                libapp_hash = hashT[0]
-                return libapp_hash
-        result = ""
-    return libapp_hash
+    """Return the Flutter engine snapshot hash found in the binary.
+
+    Reads the file as BINARY and collects contiguous 32-hex ASCII runs,
+    preferring candidates that appear in reFlutter's enginehash.csv.
+    The old text-mode reader (errors='ignore') concatenated printable
+    segments across skipped binary bytes, producing fake hashes such as
+    '15050505050505050505050505050505' which are not real snapshot hashes.
+    """
+    known = _known_snapshot_hashes()
+    try:
+        with open(fname, "rb") as f:
+            data = f.read()
+    except Exception:
+        return ""
+    candidates = re.findall(rb"[a-f0-9]{32}", data)
+    if not candidates:
+        return ""
+    # 1) prefer a candidate known to reFlutter (real snapshot hash)
+    for c in candidates:
+        s = c.decode("ascii")
+        if s in known:
+            return s
+    # 2) fallback: first candidate that is not a low-entropy/repetitive run
+    for c in candidates:
+        s = c.decode("ascii")
+        if len(set(s)) >= 8:
+            return s
+    # 3) last resort: first candidate (preserve old error behaviour)
+    return candidates[0].decode("ascii")
 
 
 def not_except(filename: str):
