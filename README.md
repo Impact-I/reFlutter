@@ -41,6 +41,12 @@ Please sign the apk file
 impact@f:~$ reflutter main.ipa
 ```
 
+Options:
+
+- `-p, --patch-dump` — dump mode: patch the engine to emit `dump.dart` (classes/methods/offsets) on start, and print a `frida.js` hint instead of the proxy instructions.
+- `-n, --no-interact` — never prompt for a Burp IP (implies `127.0.0.1`); useful for old engines in CI.
+- `-b <Snapshot_Hash>, --build-engine` — engine build mode: print the engine commit for a snapshot hash and (when run inside a flutter/flutter checkout) apply the reFlutter source patches. See `scripts/local-release`.
+
 ### Traffic interception
 
 You need to specify the IP of your Burp Suite Proxy Server located in the same network where the device with the Flutter application is. Then configure the Proxy in `BurpSuite -> Listener Proxy -> Options tab`:
@@ -53,7 +59,7 @@ You need to specify the IP of your Burp Suite Proxy Server located in the same n
 
 No certificate installation or root access is required for Android. reFlutter also allows bypassing some of the Flutter certificate pinning implementations.
 
-> ⚠️ **Note:** Starting from Flutter version **3.24.0** (snapshot hash: `80a49c7111088100a233b2ae788e1f48`), the hardcoded proxy IP and port have been removed. You now need to configure your proxy directly on the device.
+> ⚠️ **Note:** Engines up to and including Flutter **3.24.x** (snapshot hash `80a49c7111088100a233b2ae788e1f48`) still carry the hardcoded proxy IP and get patched in place. Starting with **3.27.x** the hardcoded IP is gone — configure the proxy directly on the device instead.
 
 #### On Android
 
@@ -137,7 +143,7 @@ Look for the `Value` field.
 
 ### Build Engine
 
-Engines are built using [GitHub Actions](https://github.com/Impact-I/reFlutter/actions) based on data in [enginehash.csv](https://github.com/Impact-I/reFlutter/blob/main/enginehash.csv). Snapshot hash is retrieved from:
+Engines are built with `scripts/local-release` (macOS; builds v2 + v3 for iOS and Android arm64/arm/x64, verifies every patch landed, and uploads the release assets) based on data in [enginehash.csv](https://github.com/Impact-I/reFlutter/blob/main/enginehash.csv). The engine commit for a snapshot hash is resolved via `reflutter -b <Snapshot_Hash>`. Snapshot hash is retrieved from:
 
 ```
 https://storage.googleapis.com/flutter_infra_release/flutter/<hash>/android-arm64-release/linux-x64.zip
