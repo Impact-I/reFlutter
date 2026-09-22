@@ -26,3 +26,7 @@ goma/
 .gclient_cache/
 gclient_synced/
 __pycache__/
+
+# scratch space for local test artifacts (reusable)
+tmp/
+.xcode_sdk_shadow/
