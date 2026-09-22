@@ -99,23 +99,22 @@ def check_libapp_hash(libapp_hash: str) -> int | None:
     return len(resp) + 1 - _index
 
 
+# Byte-level form of the scan elff() used to run char-by-char: find runs of
+# printable ASCII >= 32 bytes, return the first 32-char lowercase-hex string
+# inside one (the engine's expected snapshot hash). Same first-match
+# semantics, but a regex over bytes instead of a Python loop over millions of
+# decoded characters.
+_PRINTABLE_RUN = re.compile(rb"[\x20-\x7e\t\n\r\x0b\x0c]{32,}")
+_SNAPSHOT_HASH = re.compile(rb"[a-f\d]{32}")
+
+
 def elff(fname: str) -> str:
-    libapp_hash = ""
-    min = 32
-    f = open(fname, errors="ignore")
-    result = ""
-    for c in f.read():
-        if c in string.printable:
-            result += c
-            continue
-        if len(result) >= min:
-            hashT = re.findall(r"([a-f\d]{32})", result)
-            if len(hashT) > 0:
-                f.close()
-                libapp_hash = hashT[0]
-                return libapp_hash
-        result = ""
-    return libapp_hash
+    with open(fname, "rb") as f:
+        for run in _PRINTABLE_RUN.finditer(f.read()):
+            match = _SNAPSHOT_HASH.search(run.group())
+            if match:
+                return match.group().decode("ascii")
+    return ""
 
 
 def not_except(filename: str):
@@ -215,6 +214,28 @@ def replace_flutter_lib(
         patch_dump,
         burp_ip,
     )
+    if (
+        not os.path.exists("libflutter_arm64.so")
+        and not os.path.exists("libflutter_arm.so")
+        and not os.path.exists("libflutter_x64.so")
+        and not os.path.exists("libflutter_x86.so")
+        and not os.path.exists("Flutter")
+    ):
+        # Every engine variant download failed - without this check the app
+        # would be re-zipped silently with its ORIGINAL (unpatched) engine.
+        shutil.rmtree("libappTmp", ignore_errors=True)
+        shutil.rmtree("release", ignore_errors=True)
+        print(
+            "\n SnapshotHash: "
+            + libapp_hash
+            + "\n\n Could not download any patched engine library for this version.\n"
+            " The release assets may be missing or not yet uploaded for this engine"
+            " (android-"
+            + ("v3-" if patch_dump else "v2-")
+            + libapp_hash
+            + ").\n"
+        )
+        sys.exit(1)
     if (
         os.path.exists("libflutter_arm64.so")
         or os.path.exists("libflutter_arm.so")
@@ -517,6 +538,12 @@ def patch_source(libapp_hash: str, ver: int, patch_dump: bool):
         replace_file_text(
             "src/flutter/BUILD.gn",
             '  if (is_android) {\n    public_deps +=\n        [ "//flutter/shell/platform/android:flutter_shell_native_unittests" ]\n  }',
+            "",
+        )
+        # newer engines list the target inside a deps += [ ... ] block instead
+        replace_file_text(
+            "src/flutter/BUILD.gn",
+            '"//flutter/shell/platform/android:flutter_shell_native_unittests",\n',
             "",
         )
 

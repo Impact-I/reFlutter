@@ -4,9 +4,11 @@
 Get Snapshot Hash
 """
 
-import re
-import string
+import os
 import sys
+
+sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../reflutter")
+from utils import elff
 
 
 def usage():
@@ -17,22 +19,4 @@ def usage():
 if len(sys.argv) != 2:
     usage()
 
-file_name = sys.argv[1]
-min_hash_length = 32
-f = open(file_name, errors="ignore")
-
-lib_app_hash = ""
-result = ""
-for c in f.read():
-    if c in string.printable:
-        result += c
-        continue
-    if len(result) >= min_hash_length:
-        hashT = re.findall(r"([a-f\d]{32})", result)
-        if len(hashT) > 0:
-            lib_app_hash = hashT[0]
-            break
-        f.close()
-    result = ""
-
-print(lib_app_hash)
+print(elff(sys.argv[1]))

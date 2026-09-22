@@ -173,6 +173,37 @@ if $DO_BUILD; then
   ENG="$GCLIENT_DIR/engine"
 
   # === PHASE 3: Build each variant ===
+  # Fail loudly if any patch anchor drifted upstream: replace_file_text is a
+  # silent no-op when its pattern no longer matches, and a partially-unpatched
+  # engine would otherwise build and ship broken artifacts.
+  verify_patches() {
+    local flags="$1"
+    local dart_root="$GCLIENT_DIR/engine/src/flutter/third_party/dart"
+    local fail=0
+
+    if ! grep -q "snapshot_hash = '$SNAPSHOT_HASH'" "$dart_root/tools/make_version.py"; then
+      warn "PATCH MISS: make_version.py snapshot_hash override not applied"; fail=1
+    fi
+    if ! grep -q "out_alert) {return" "$dart_root/../boringssl/src/ssl/ssl_x509.cc"; then
+      warn "PATCH MISS: boringssl ssl_x509.cc cert-chain bypass not applied"; fail=1
+    fi
+    if [[ "$flags" == *"-p"* ]]; then
+      if ! grep -q "reFlutter dump file" "$dart_root/runtime/vm/app_snapshot.cc"; then
+        warn "PATCH MISS: app_snapshot.cc dump instrumentation not applied"; fail=1
+      fi
+      if ! grep -q "instructions_table_.rodata()->entries()" "$dart_root/runtime/vm/app_snapshot.cc"; then
+        warn "PATCH MISS: app_snapshot.cc code-offset fix not applied"; fail=1
+      fi
+      if grep -q "FLAG_print_class_table)" "$dart_root/runtime/vm/dart.cc"; then
+        warn "PATCH MISS: dart.cc class-table print not enabled"; fail=1
+      fi
+    fi
+    if [[ $fail -ne 0 ]]; then
+      die "Engine patches did not apply cleanly for this engine version — fix the anchors in reflutter/utils.py patch_source() before building"
+    fi
+    say "All engine patches verified for $flags variant"
+  }
+
   build_variant() {
     local variant="$1"
     local reflutter_flags="$2"
@@ -186,6 +217,7 @@ if $DO_BUILD; then
     cd "$GCLIENT_DIR"
     git checkout -- . 2>/dev/null || true
     reflutter -b "$SNAPSHOT_HASH" $reflutter_flags
+    verify_patches "$reflutter_flags"
 
     # iOS
     ninja_build "iOS release" "src/out/ios_release" "Flutter.framework/Flutter" "$out/Flutter" \
