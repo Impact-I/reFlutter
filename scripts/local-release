@@ -160,7 +160,10 @@ ninja_build() {
 
   say "ninja: $target …"
   "$ENG"/src/flutter/tools/gn --no-goma "$@" --runtime-mode=release
-  ninja -C "$ENG/$out_dir"
+  # build ONLY the artifact we ship - the default (all) target also builds
+  # the framework's unit tests, whose prebuilts XCTest headers use newer
+  # availability macros (visionos) unknown to older engines' pinned clang
+  ninja -C "$ENG/$out_dir" "$out_file"
   cp "$ENG/$out_dir/$out_file" "$dst" 2>/dev/null || true
   say "  -> $dst"
 }
