@@ -159,7 +159,32 @@ python3 scripts/gen_enginehash.py --shorebird
 Notes: our own engines cannot run Shorebird snapshots (their code lives in patchable regions understood only by their private Dart fork's loader — verified empirically), which is exactly why the binary-patch route is used.
 Android requires the engine artifact to carry a symbol table — recent
 revisions (Aug 2025+) ship with one; some older revisions are stripped and
-fail loudly with a clear error. Android arm64/arm32/x64 are patched per-ABI. iOS support requires a dSYM from the same build (shipped frameworks are stripped); dSYM availability varies by engine revision — check the bucket. The resulting ipa must be re-signed, as the tool's output already instructs. Dump mode for Shorebird engines remains blocked on the private Dart fork.
+fail loudly with a clear error. Android arm64/arm32/x64 are patched per-ABI. iOS support requires a dSYM from the same build (shipped frameworks are stripped); dSYM availability varies by engine revision — check the bucket. The resulting ipa must be re-signed, as the tool's output already instructs.
+
+**Dump mode for Shorebird apps** works at runtime — no engine build at
+all: their private Dart fork breaks reFlutter's patched-engine route,
+but the engine Shorebird *ships* inside the APK is unstripped.
+`scripts/frida-dump.js` hooks the app's own libflutter.so at
+`FunctionDeserializationCluster::PostLoad` — the exact splice point of
+the engine patch — and replays its JSONL dump by reading raw Dart
+object layouts, deriving the instructions-image base at runtime:
+
+```bash
+frida -D <device> -f <package> -l scripts/frida-dump.js
+adb pull /data/data/<package>/dump.dart .
+python3 scripts/dump2disasm.py dump.dart
+```
+
+Requires an arm64 AOT app and the unstripped engine (the stock
+Shorebird artifact is; reFlutter's repacked copies are not — the
+script fails loudly there). Offsets are relative to the Dart
+instructions image start, same convention as engine dumps; dump.dart
+feeds straight into `scripts/dump2disasm.py` (IDA + Ghidra naming).
+Function names carry the raw `Class@12345` form (strictly more
+information than the engine patch's scrubbed names). Validated on a
+live Shorebird app: 6,957 functions, offsets arm64-spot-checked
+against the APK's instructions image, and consumed downstream by
+dump2disasm.
 
 ### Profile and Debug builds
 
