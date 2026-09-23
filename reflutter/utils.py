@@ -19,6 +19,8 @@ SHOREBIRD_ARTIFACT_URL = (
 # verification succeed unconditionally (traffic interception without
 # touching the app's snapshot format)
 VERIFY_BYPASS_ARM64 = bytes.fromhex("20008052" "c0035fd6")
+# arm32 (thumb): movs r0, #1 ; bx lr
+VERIFY_BYPASS_ARM32 = bytes.fromhex("0120" "7047")
 
 
 def patch_engine_verify(data: bytes) -> bytes:
@@ -29,12 +31,15 @@ def patch_engine_verify(data: bytes) -> bytes:
     symbol addresses to file offsets, the symbol table provides the address.
     Afterwards everything after the last PT_LOAD is dropped and the section
     table is zeroed - Android's linker only reads program headers, so this
-    strips Shorebird's ~150MB of shipped symbols safely."""
+    strips Shorebird's ~150MB of shipped symbols safely. 32- and 64-bit
+    ELFs are both handled."""
     import struct
 
-    if data[:4] != b"\x7fELF" or data[4] != 2:
-        raise ValueError("expected a 64-bit ELF engine library")
+    if data[:4] != b"\x7fELF":
+        raise ValueError("not an ELF file")
+    is64 = data[4] == 2
     endian = "<" if data[5] == 1 else ">"
+    entry = 24 if is64 else 16  # Elf_Sym size
 
     def u16(off):
         return struct.unpack_from(endian + "H", data, off)[0]
@@ -45,15 +50,26 @@ def patch_engine_verify(data: bytes) -> bytes:
     def u64(off):
         return struct.unpack_from(endian + "Q", data, off)[0]
 
-    e_phoff, e_shoff = u64(0x20), u64(0x28)
-    e_phentsize, e_phnum = u16(0x36), u16(0x38)
-    e_shentsize, e_shnum, e_shstrndx = u16(0x3A), u16(0x3C), u16(0x3E)
+    if is64:
+        e_phoff, e_shoff = u64(0x20), u64(0x28)
+        e_phentsize, e_phnum = u16(0x36), u16(0x38)
+        e_shentsize, e_shnum, e_shstrndx = u16(0x3A), u16(0x3C), u16(0x3E)
+        ph_vaddr, ph_off, ph_filesz = 16, 8, 32
+        sh_name, sh_type, sh_off, sh_size = 0, 4, 24, 32
+    else:
+        e_phoff, e_shoff = u32(0x1C), u32(0x20)
+        e_phentsize, e_phnum = u16(0x2A), u16(0x2C)
+        e_shentsize, e_shnum, e_shstrndx = u16(0x2E), u16(0x30), u16(0x32)
+        ph_vaddr, ph_off, ph_filesz = 8, 4, 16
+        sh_name, sh_type, sh_off, sh_size = 0, 4, 16, 20
+
+    read_addr = (lambda off: u64(off)) if is64 else (lambda off: u32(off))
 
     segments = []
     for i in range(e_phnum):
         b = e_phoff + i * e_phentsize
         if u32(b) == 1:  # PT_LOAD
-            segments.append((u64(b + 16), u64(b + 8), u64(b + 32)))  # vaddr, off, size
+            segments.append((read_addr(b + ph_vaddr), read_addr(b + ph_off), read_addr(b + ph_filesz)))
 
     def vaddr_to_off(v):
         for vaddr, offset, filesz in segments:
@@ -64,7 +80,7 @@ def patch_engine_verify(data: bytes) -> bytes:
     sections = []
     for i in range(e_shnum):
         b = e_shoff + i * e_shentsize
-        sections.append((u32(b), u32(b + 4), u64(b + 24), u64(b + 32)))
+        sections.append((u32(b + sh_name), u32(b + sh_type), read_addr(b + sh_off), read_addr(b + sh_size)))
     shstr_off = sections[e_shstrndx][2]
     symtab = strtab = symtab_size = None
     for name_idx, sh_type, off, size in sections:
@@ -81,7 +97,6 @@ def patch_engine_verify(data: bytes) -> bytes:
 
     target = b"ssl_crypto_x509_session_verify_cert_chain"
     out = bytearray(data)
-    entry = 24  # Elf64_Sym
     for i in range(symtab_size // entry):
         b = symtab + i * entry
         st_name = u32(b)
@@ -89,73 +104,110 @@ def patch_engine_verify(data: bytes) -> bytes:
             continue
         name_end = data.index(b"\0", strtab + st_name)
         if target in data[strtab + st_name : name_end]:
-            off = vaddr_to_off(u64(b + 8))
-            out[off : off + 8] = VERIFY_BYPASS_ARM64
+            st_value = read_addr(b + 8)
+            off = vaddr_to_off(st_value & ~1)  # thumb bit
+            bypass = VERIFY_BYPASS_ARM64 if is64 else VERIFY_BYPASS_ARM32
+            out[off : off + len(bypass)] = bypass
             # drop everything past the last PT_LOAD and void the section table
             tail = max(offset + filesz for _, offset, filesz in segments)
-            struct.pack_into(endian + "Q", out, 0x28, 0)  # e_shoff = 0
-            struct.pack_into(endian + "H", out, 0x3C, 0)  # e_shnum = 0
+            if is64:
+                struct.pack_into(endian + "Q", out, 0x28, 0)  # e_shoff
+                struct.pack_into(endian + "H", out, 0x3C, 0)  # e_shnum
+            else:
+                struct.pack_into(endian + "I", out, 0x20, 0)  # e_shoff
+                struct.pack_into(endian + "H", out, 0x30, 0)  # e_shnum
             return bytes(out[:tail])
     raise ValueError("verify_cert_chain symbol not found in engine")
 
 
-def patch_engine_verify_macho(data: bytes) -> bytes:
+def _macho_symbols_and_segments(data: bytes):
+    """-> (segments, (symoff, nsyms, stroff)) of a thin arm64 Mach-O."""
+    import struct
+
+    if struct.unpack_from("<I", data, 0)[0] != 0xFEEDFACF:
+        raise ValueError("expected an arm64 Mach-O slice")
+    ncmds = struct.unpack_from("<I", data, 16)[0]
+    off = 32
+    segments = []
+    symtab = None
+    for _ in range(ncmds):
+        cmd, cmdsize = struct.unpack_from("<II", data, off)
+        if cmd == 0x19:  # LC_SEGMENT_64
+            vmaddr, vmsize, fileoff, filesize = struct.unpack_from(
+                "<QQQQ", data, off + 24
+            )
+            if filesize:
+                segments.append((vmaddr, vmsize, fileoff))
+        elif cmd == 0x2:  # LC_SYMTAB
+            symtab = struct.unpack_from("<IIII", data, off + 8)
+        off += cmdsize
+    return segments, symtab
+
+
+def _macho_symbol_value(symtab_owner: bytes, target: bytes):
+    """Address of the first symbol whose name contains `target`."""
+    import struct
+
+    segments, symtab = _macho_symbols_and_segments(symtab_owner)
+    if symtab is None:
+        return None
+    symoff, nsyms, stroff, _strsize = symtab
+    for i in range(nsyms):
+        b = symoff + i * 16  # nlist_64
+        n_strx = struct.unpack_from("<I", symtab_owner, b)[0]
+        if not n_strx:
+            continue
+        name_end = symtab_owner.index(b"\0", stroff + n_strx)
+        if target in symtab_owner[stroff + n_strx : name_end]:
+            return struct.unpack_from("<Q", symtab_owner, b + 8)[0]
+    return None
+
+
+def patch_engine_verify_macho(data: bytes, dsym: bytes = None) -> bytes:
     """Mach-O arm64 twin of patch_engine_verify, for iOS Flutter frameworks.
 
-    Walks LC_SEGMENT_64 (vmaddr -> fileoff) and LC_SYMTAB in pure Python and
-    patches boringssl's certificate-chain verification to return true. Fat
-    binaries are handled by patching every arm64 slice."""
+    Walks LC_SEGMENT_64 (vmaddr -> fileoff) and patches boringssl's
+    certificate-chain verification to return true. The symbol address comes
+    from the framework's own LC_SYMTAB when present; Shorebird strips local
+    symbols from shipped frameworks, but their dSYM for the same build
+    carries the exact addresses, so `dsym` (the DWARF binary inside
+    Flutter.framework.dSYM) is used as the symbol source. Fat binaries are
+    handled by patching every arm64 slice."""
     import struct
 
     def patch_thin(slice_data: bytes) -> bytes:
-        if struct.unpack_from("<I", slice_data, 0)[0] != 0xFEEDFACF:
-            raise ValueError("expected an arm64 Mach-O slice")
-        ncmds = struct.unpack_from("<I", slice_data, 16)[0]
-        off = 32
-        segments = []
-        symtab = None
-        for _ in range(ncmds):
-            cmd, cmdsize = struct.unpack_from("<II", slice_data, off)
-            if cmd == 0x19:  # LC_SEGMENT_64
-                segname = slice_data[off + 8 : off + 24].rstrip(b"\0")
-                vmaddr, vmsize, fileoff, filesize = struct.unpack_from(
-                    "<QQQQ", slice_data, off + 24
-                )
-                if filesize:
-                    segments.append((segname, vmaddr, vmsize, fileoff))
-            elif cmd == 0x2:  # LC_SYMTAB
-                symtab = struct.unpack_from("<IIII", slice_data, off + 8)
-            off += cmdsize
-        if symtab is None:
-            raise ValueError(
-                "Mach-O carries no symbol table - stripped iOS artifacts need "
-                "pattern-based patching (pending)"
-            )
-        symoff, nsyms, stroff, _strsize = symtab
+        segments, symtab = _macho_symbols_and_segments(slice_data)
 
         def vaddr_to_off(v):
-            for _, vmaddr, vmsize, fileoff in segments:
+            for vmaddr, vmsize, fileoff in segments:
                 if vmaddr <= v < vmaddr + vmsize:
                     return fileoff + (v - vmaddr)
             raise ValueError("symbol address outside all segments")
 
         target = b"ssl_crypto_x509_session_verify_cert_chain"
+        n_value = None
+        if symtab is not None:
+            n_value = _macho_symbol_value(slice_data, target)
+        if n_value is None and dsym is not None:
+            # locate the arm64 slice inside a fat dSYM if needed
+            source = dsym
+            if struct.unpack_from(">I", dsym, 0)[0] == 0xCAFEBABE:
+                nfat = struct.unpack_from(">I", dsym, 4)[0]
+                for i in range(nfat):
+                    b = 8 + i * 20
+                    cputype, _, offset, size, _ = struct.unpack_from(">IIIII", dsym, b)
+                    if cputype == 0x0100000C:
+                        source = dsym[offset : offset + size]
+                        break
+            n_value = _macho_symbol_value(source, target)
+        if n_value is None:
+            raise ValueError(
+                "verify_cert_chain symbol not found in framework or dSYM"
+            )
+        off = vaddr_to_off(n_value)
         out = bytearray(slice_data)
-        for i in range(nsyms):
-            b = symoff + i * 16  # nlist_64
-            n_strx = struct.unpack_from("<I", out, b)[0]
-            if not n_strx:
-                continue
-            name_end = out.index(b"\0", stroff + n_strx)
-            if target in out[stroff + n_strx : name_end]:
-                n_value = struct.unpack_from("<Q", out, b + 8)[0]
-                off = vaddr_to_off(n_value)
-                out[off : off + 8] = VERIFY_BYPASS_ARM64
-                return bytes(out)
-        raise ValueError(
-            "verify_cert_chain symbol not found - Shorebird iOS artifacts are "
-            "stripped of local symbols; pattern-based patching is pending"
-        )
+        out[off : off + 8] = VERIFY_BYPASS_ARM64
+        return bytes(out)
 
     magic_be = struct.unpack_from(">I", data, 0)[0]
     if magic_be == 0xCAFEBABE:  # fat binary - patch each arm64 slice
@@ -192,7 +244,20 @@ def fetch_shorebird_engine(engine_commit: str, dest_path: str, arch: str):
         if arch == "ios":
             member = next(n for n in names if n.endswith("Flutter.framework/Flutter"))
             engine = archive.read(member)
-            patched = patch_engine_verify_macho(engine)
+            # shipped iOS frameworks are stripped of local symbols; the dSYM
+            # of the same build carries the exact addresses
+            dsym = None
+            dsym_url = url.replace("artifacts.zip", "Flutter.framework.dSYM.zip")
+            try:
+                dsym_raw = urlopen(dsym_url).read()
+                with zipfile.ZipFile(io.BytesIO(dsym_raw)) as dzip:
+                    dwarf = next(
+                        n for n in dzip.namelist() if n.endswith("Resources/DWARF/Flutter")
+                    )
+                    dsym = dzip.read(dwarf)
+            except Exception as error:
+                print("[!] Shorebird dSYM unavailable (" + repr(error) + ")")
+            patched = patch_engine_verify_macho(engine, dsym)
             with open(dest_path, "wb") as f:
                 f.write(patched)
             return dest_path
