@@ -197,6 +197,14 @@ if $DO_BUILD; then
     if ! git fetch https://github.com/flutter/engine.git "$ENGINE_COMMIT" 2>/dev/null; then
       die "engine commit $ENGINE_COMMIT not found in flutter/flutter OR flutter/engine - check the hash (a transient network failure also lands here)"
     fi
+  fi
+  # the COMMIT'S OWN TREE SHAPE decides the gclient layout, never which remote
+  # served it: once a pre-merge object is cached locally, later "git fetch
+  # origin <sha>" runs succeed against flutter/flutter even though the commit
+  # lives only in the archived engine repo
+  if git cat-file -e "$ENGINE_COMMIT:engine" 2>/dev/null; then
+    PRE_MERGE=false
+  else
     PRE_MERGE=true
   fi
   say "pre-merge engine layout: $PRE_MERGE"
