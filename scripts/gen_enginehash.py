@@ -46,6 +46,9 @@ ENGINE_VERSION_URL = (
 SNAPSHOT_URL = (
     "https://storage.googleapis.com/flutter_infra_release/flutter/{engine}/android-arm64-release/linux-x64.zip"
 )
+PROFILE_SNAPSHOT_URL = (
+    "https://storage.googleapis.com/flutter_infra_release/flutter/{engine}/android-arm64-profile/linux-x64.zip"
+)
 CSV_HEADER = "version,Engine_commit,Snapshot_Hash,Dart_Version"
 
 # Shorebird engine artifacts live in a public GCS bucket that mirrors the
@@ -317,6 +320,12 @@ def main():
         "--limit", type=int, default=None, help="only process the N newest releases"
     )
     parser.add_argument(
+        "--profile",
+        action="store_true",
+        help="collect PROFILE-engine hashes (apps built with flutter build "
+        "--profile) into enginehash_profile.csv",
+    )
+    parser.add_argument(
         "--shorebird",
         action="store_true",
         help="collect Shorebird engine hashes from the shorebirdtech/flutter "
@@ -325,6 +334,9 @@ def main():
     )
     args = parser.parse_args()
 
+    if args.profile:
+        globals()["SNAPSHOT_URL"] = PROFILE_SNAPSHOT_URL
+        args.out = os.path.join(SCRIPT_DIR, "enginehash_profile.tmp.csv")
     if args.shorebird:
         return main_shorebird(args)
 

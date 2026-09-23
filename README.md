@@ -135,10 +135,24 @@ python3 scripts/gen_enginehash.py --shorebird
 
 Notes: our own engines cannot run Shorebird snapshots (their code lives in patchable regions understood only by their private Dart fork's loader — verified empirically), which is exactly why the binary-patch route is used. Android arm64/arm/x64 are handled per-ABI (32-bit ARM pending); Shorebird iOS patching (Mach-O) is not implemented yet and the iOS library stays original. Dump mode for Shorebird engines remains blocked on the private Dart fork.
 
+### Profile and Debug builds
+
+Apps built with `flutter build --profile` carry the same snapshot hash as
+their release counterparts (verified across engines: the hash covers the VM
+sources, not the runtime mode, and profile/release AOT snapshots are
+format-compatible) - so profile-mode apps work with the regular release
+engine assets already. `scripts/gen_enginehash.py --profile` re-verifies
+this for new engines.
+
+Debug builds are genuinely different (JIT kernel snapshots, no AOT
+libapp.so) and still require a manually built debug engine via the
+Dockerfile.
+
 ### To Do
 
 - [x] Display absolute code offset for functions;
-- [ ] Extract more strings and fields;
+- [x] Extract more strings and fields (is_static, parameter_count in the
+      JSONL dump; frida.js auto-written next to -p output);
 - [x] Add socket patch;
 - [ ] Extend engine support to Debug using Fork and Github Actions;
 - [x] Improve detection of `App.framework` and `libapp.so` inside zip archive (fallback scan + x86 path fixed in 0.9.0)

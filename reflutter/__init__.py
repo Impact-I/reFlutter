@@ -133,8 +133,8 @@ def _build_engine(libapp_hash: str):
 
     # vanilla engines live in enginehash.csv, Shorebird engines in
     # enginehash_sb.csv - try both before giving up
-    for csv_name in ("enginehash.csv", "enginehash_sb.csv"):
-        if csv_name == "enginehash_sb.csv" and not os.path.exists(csv_name):
+    for csv_name in ("enginehash.csv", "enginehash_sb.csv", "enginehash_profile.csv"):
+        if csv_name != "enginehash.csv" and not os.path.exists(csv_name):
             try:
                 urlretrieve(
                     "https://raw.githubusercontent.com/Impact-I/reFlutter/main/"
