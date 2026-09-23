@@ -1049,6 +1049,24 @@ def patch_source(libapp_hash: str, ver: int, patch_dump: bool, dart_version: str
             '#include "vm/log.h"\n#include "vm/timeline.h"\n\n#define stack_protector_ignore',
         )
 
+    # the rolled libcxx ships fewer transitive includes than the 3.24-era
+    # engine sources expect (std::shared_ptr used via fwd-decls only, etc.) -
+    # force <memory> into every C++/ObjC++ TU at the base compiler config,
+    # instead of chasing missing includes one engine file at a time
+    for _f in (
+        "src/build/config/compiler/BUILD.gn",
+        "engine/src/build/config/compiler/BUILD.gn",
+    ):
+        replace_file_text(
+            _f,
+            'config("compiler") {\n  cflags = []',
+            'config("compiler") {\n  cflags = []\n'
+            "  # reflutter pre-merge compat: force-include <memory> - the rolled\n"
+            "  # libcxx stopped providing shared_ptr/make_shared transitively\n"
+            '  cflags_cc += [ "-include", "memory" ]\n'
+            '  cflags_objcc += [ "-include", "memory" ]',
+        )
+
     if ver >= 24 and patch_dump:
         replace_file_text(
             "src/third_party/dart/runtime/vm/clustered_snapshot.cc",
