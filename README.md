@@ -119,7 +119,7 @@ frida-tools==13.7.1
 frida==16.7.19
 ```
 
-Use dump offsets in the Frida [script](https://github.com/Impact-I/reFlutter/blob/main/frida.js). The script resolves `_kDartIsolateSnapshotInstructions` automatically and works across Frida 14–17 (recent versions are recommended):
+Use dump offsets in the Frida [script](https://github.com/Impact-I/reFlutter/blob/main/frida.js). The script resolves the snapshot-instructions symbol automatically — it is exported as `_kDartSnapshotText` in newer Dart and `_kDartIsolateSnapshotInstructions` in older versions — and works across Frida 14–17. Recent frida-server versions are recommended (16.x servers predate Android 15+ and cannot inject there):
 
 ```bash
 frida -U -f <package> -l frida.js
