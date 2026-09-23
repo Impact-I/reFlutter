@@ -247,7 +247,7 @@ def main_shorebird(args):
     print("[i] {} shorebird engine revisions in bucket".format(len(revisions)), flush=True)
 
     row_of_version = load_seed_rows([out_path])
-    known_hashes = {snapshot_hash for _, snapshot_hash in row_of_version.values()}
+    known_hashes = {row[1] for row in row_of_version.values()}
 
     # rows are keyed sb-<rev> (the hash column is what lookups match on)
     engine_of_row = {row[0]: rev for rev, row in ((v[0], v) for v in row_of_version.values())}
@@ -261,19 +261,21 @@ def main_shorebird(args):
         }
         for done, future in enumerate(concurrent.futures.as_completed(futures), 1):
             rev = futures[future]
+            result = None
             try:
-                snapshot_hash = future.result()
+                result = future.result()
             except requests.RequestException as error:
-                snapshot_hash = None
                 print("[!] download failed for engine {}: {}".format(rev, error), flush=True)
-            if snapshot_hash and snapshot_hash not in known_hashes:
-                known_hashes.add(snapshot_hash)
-                row_of_version["sb-" + rev] = (rev, snapshot_hash)
-            elif not snapshot_hash:
+            if result:
+                snapshot_hash, dart_version = result
+                if snapshot_hash and snapshot_hash not in known_hashes:
+                    known_hashes.add(snapshot_hash)
+                    row_of_version["sb-" + rev] = (rev, snapshot_hash, dart_version)
+            else:
                 misses.append(rev)
             print(
                 "[fetch] {}/{} engine {}... -> {}".format(
-                    done, len(todo), rev[:12], snapshot_hash
+                    done, len(todo), rev[:12], result[0] if result else None
                 ),
                 flush=True,
             )
@@ -341,8 +343,8 @@ def main():
     ]
     row_of_version = load_seed_rows(seed_paths)
     engine_snapshot = {
-        engine_commit: snapshot_hash
-        for engine_commit, snapshot_hash in row_of_version.values()
+        engine_commit: (snapshot_hash, dart_version)
+        for engine_commit, snapshot_hash, dart_version in row_of_version.values()
     }
     print(
         "[i] {} releases in manifest, {} rows resumed from seeds".format(
@@ -394,6 +396,11 @@ def main():
     )
 
     # Pass 3: download each missing engine artifact once, extract its hash.
+    dart_of_version = {}
+    for release in releases:
+        dart_of_version.setdefault(
+            release["version"], release.get("dart_sdk_version", "")
+        )
     misses = []
     with concurrent.futures.ThreadPoolExecutor(max_workers=args.workers) as pool:
         futures = {
@@ -402,15 +409,16 @@ def main():
         }
         for done, future in enumerate(concurrent.futures.as_completed(futures), 1):
             engine = futures[future]
+            result = None
             try:
-                snapshot_hash = future.result()
+                result = future.result()
             except requests.RequestException as error:
-                snapshot_hash = None
                 print("[!] download failed for engine {}: {}".format(engine, error), flush=True)
-            engine_snapshot[engine] = snapshot_hash
+            snapshot_hash = result[0] if result else None
+            engine_snapshot[engine] = result
             if snapshot_hash:
                 for version in pending_by_engine[engine]:
-                    row_of_version[version] = (engine, snapshot_hash)
+                    row_of_version[version] = (engine, snapshot_hash, dart_of_version.get(version, ""))
             else:
                 misses.extend(pending_by_engine[engine])
             print(
