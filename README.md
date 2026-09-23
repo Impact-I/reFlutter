@@ -133,7 +133,7 @@ Apps built with [Shorebird](https://shorebird.dev) use a patched Flutter engine 
 python3 scripts/gen_enginehash.py --shorebird
 ```
 
-Notes: our own engines cannot run Shorebird snapshots (their code lives in patchable regions understood only by their private Dart fork's loader — verified empirically), which is exactly why the binary-patch route is used. Android arm64/arm/x64 are handled per-ABI (32-bit ARM pending); Shorebird iOS patching (Mach-O) is not implemented yet and the iOS library stays original. Dump mode for Shorebird engines remains blocked on the private Dart fork.
+Notes: our own engines cannot run Shorebird snapshots (their code lives in patchable regions understood only by their private Dart fork's loader — verified empirically), which is exactly why the binary-patch route is used. Android arm64/arm32/x64 are patched per-ABI. iOS frameworks are Mach-O patched using the dSYM of the same build for exact symbol addresses (shipped frameworks are stripped) — the resulting ipa must be re-signed, as the tool's output already instructs. Dump mode for Shorebird engines remains blocked on the private Dart fork.
 
 ### Profile and Debug builds
 
