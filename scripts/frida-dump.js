@@ -37,6 +37,18 @@
 // UserVisibleNameCString forms (private-key suffix stripped), we write the raw
 // name_ strings - same name plus a retained @<key> on private classes, which
 // is strictly more information (see the SYM_POSTLOAD comment below).
+//
+// Divergences from the engine patch, verified on a live Shorebird snapshot
+// (adversarial review, 2026-09-23):
+//  - parameter_count: ~80% of functions on that snapshot share a 16-byte
+//    Shorebird-appended signature stub (cid above the known FunctionType) -
+//    this script prints 0 for those where the patch would read garbage out
+//    of bounds. Treat parameter_count as UNKNOWN on Shorebird snapshots.
+//  - ~14% of functions have a non-Class owner: we print "<not-a-class>" /
+//    "<null>" (with "<null>" library_url); the patch would print accessor
+//    output (or garbage) for the same cases. Offsets/names are unaffected.
+// A successful dump always logs a summary line to stderr (entries + path);
+// silence means no dump happened - check the DEBUG flag for the why.
 // ============================================================================
 //
 // HOW IT WORKS (the why, per repo style):
@@ -716,6 +728,7 @@ function dumpCluster(startIndex, stopIndex, refsHandle, heapBase, image) {
 // buffered until the end of the cluster simply never lands.
 var WRITE_CHUNK = 512;
 var writeFile = null;
+var g_totalEntries = 0;
 
 function writeLines(lines) {
   if (lines.length === 0) return;
@@ -725,6 +738,7 @@ function writeLines(lines) {
   }
   writeFile.write(lines.join("\n") + "\n");
   writeFile.flush();
+  g_totalEntries += lines.length;
 }
 
 // --- hooking -----------------------------------------------------------------
@@ -849,11 +863,17 @@ function hookOnce(mod) {
         var lines = dumpCluster(start, stop, refsHandle, heapBase, image);
         if (lines !== null && lines.length > 0) {
           writeLines(lines); // final partial chunk
-          logDbg("wrote " + lines.length + " entries to " + g.outPath);
         }
         if (writeFile !== null) {
           writeFile.close();
           writeFile = null;
+        }
+        // always announce the result on stderr (not DEBUG-gated): silence
+        // should mean "no dump", never a quiet success
+        if (g_totalEntries > 0) {
+          logErr("[frida-dump] wrote " + g_totalEntries + " entries to " + g.outPath + " - pull it and run scripts/dump2disasm.py");
+        } else {
+          logErr("[frida-dump] completed with 0 entries - engine layout mismatch? (see DEBUG)");
         }
       } catch (e) {
         // never break the app's startup because of us
