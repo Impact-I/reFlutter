@@ -10,21 +10,21 @@ Key features:
 
 - `socket.cc` is patched for traffic monitoring and interception;
 - `dart.cc` is modified to print classes, functions and some fields;
-- display absolute code offset for functions;
+- dump mode emits `dump.dart` with class/library/function names and per-function code offsets (ready to use with `frida.js`);
 - contains minor changes for successful compilation;
 - if you would like to implement your own patches, manual Flutter code changes are supported using a specially crafted `Dockerfile`.
 
 ### Supported engines
 
-- Android: arm64, arm32;
+- Android: arm64, arm32, x64;
 - iOS: arm64;
-- Release: Stable, Beta
+- Release: Stable, Beta — engine coverage is keyed by snapshot hash, see [enginehash.csv](https://github.com/Impact-I/reFlutter/blob/main/enginehash.csv)
 
 ### Install
 
 ```
 # Linux, Windows, MacOS
-pip3 install reflutter==0.8.6
+pip3 install reflutter==0.9.0
 ```
 
 ### Usage

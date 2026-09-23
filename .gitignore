@@ -30,3 +30,6 @@ __pycache__/
 # scratch space for local test artifacts (reusable)
 tmp/
 .xcode_sdk_shadow/
+dist/
+build/
+*.egg-info/
