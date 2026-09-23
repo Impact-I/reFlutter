@@ -99,6 +99,77 @@ def patch_engine_verify(data: bytes) -> bytes:
     raise ValueError("verify_cert_chain symbol not found in engine")
 
 
+def patch_engine_verify_macho(data: bytes) -> bytes:
+    """Mach-O arm64 twin of patch_engine_verify, for iOS Flutter frameworks.
+
+    Walks LC_SEGMENT_64 (vmaddr -> fileoff) and LC_SYMTAB in pure Python and
+    patches boringssl's certificate-chain verification to return true. Fat
+    binaries are handled by patching every arm64 slice."""
+    import struct
+
+    def patch_thin(slice_data: bytes) -> bytes:
+        if struct.unpack_from("<I", slice_data, 0)[0] != 0xFEEDFACF:
+            raise ValueError("expected an arm64 Mach-O slice")
+        ncmds = struct.unpack_from("<I", slice_data, 16)[0]
+        off = 32
+        segments = []
+        symtab = None
+        for _ in range(ncmds):
+            cmd, cmdsize = struct.unpack_from("<II", slice_data, off)
+            if cmd == 0x19:  # LC_SEGMENT_64
+                segname = slice_data[off + 8 : off + 24].rstrip(b"\0")
+                vmaddr, vmsize, fileoff, filesize = struct.unpack_from(
+                    "<QQQQ", slice_data, off + 24
+                )
+                if filesize:
+                    segments.append((segname, vmaddr, vmsize, fileoff))
+            elif cmd == 0x2:  # LC_SYMTAB
+                symtab = struct.unpack_from("<IIII", slice_data, off + 8)
+            off += cmdsize
+        if symtab is None:
+            raise ValueError(
+                "Mach-O carries no symbol table - stripped iOS artifacts need "
+                "pattern-based patching (pending)"
+            )
+        symoff, nsyms, stroff, _strsize = symtab
+
+        def vaddr_to_off(v):
+            for _, vmaddr, vmsize, fileoff in segments:
+                if vmaddr <= v < vmaddr + vmsize:
+                    return fileoff + (v - vmaddr)
+            raise ValueError("symbol address outside all segments")
+
+        target = b"ssl_crypto_x509_session_verify_cert_chain"
+        out = bytearray(slice_data)
+        for i in range(nsyms):
+            b = symoff + i * 16  # nlist_64
+            n_strx = struct.unpack_from("<I", out, b)[0]
+            if not n_strx:
+                continue
+            name_end = out.index(b"\0", stroff + n_strx)
+            if target in out[stroff + n_strx : name_end]:
+                n_value = struct.unpack_from("<Q", out, b + 8)[0]
+                off = vaddr_to_off(n_value)
+                out[off : off + 8] = VERIFY_BYPASS_ARM64
+                return bytes(out)
+        raise ValueError(
+            "verify_cert_chain symbol not found - Shorebird iOS artifacts are "
+            "stripped of local symbols; pattern-based patching is pending"
+        )
+
+    magic_be = struct.unpack_from(">I", data, 0)[0]
+    if magic_be == 0xCAFEBABE:  # fat binary - patch each arm64 slice
+        nfat = struct.unpack_from(">I", data, 4)[0]
+        out = bytearray(data)
+        for i in range(nfat):
+            b = 8 + i * 20  # fat_arch
+            cputype, _, offset, size, _ = struct.unpack_from(">IIIII", data, b)
+            if cputype == 0x0100000C:  # CPU_TYPE_ARM64
+                out[offset : offset + size] = patch_thin(data[offset : offset + size])
+        return bytes(out)
+    return patch_thin(data)
+
+
 def fetch_shorebird_engine(engine_commit: str, dest_path: str, arch: str):
     """Download Shorebird's own engine artifact for this revision, patch its
     certificate verification, and write it to dest_path. Using their binary
@@ -110,6 +181,7 @@ def fetch_shorebird_engine(engine_commit: str, dest_path: str, arch: str):
         "arm64": "android-arm64-release",
         "arm": "android-arm-release",
         "x64": "android-x64-release",
+        "ios": "ios-release",
     }
     url = SHOREBIRD_ARTIFACT_URL.format(
         engine=engine_commit, artifact=artifacts[arch]
@@ -117,6 +189,13 @@ def fetch_shorebird_engine(engine_commit: str, dest_path: str, arch: str):
     raw = urlopen(url).read()
     with zipfile.ZipFile(io.BytesIO(raw)) as archive:
         names = archive.namelist()
+        if arch == "ios":
+            member = next(n for n in names if n.endswith("Flutter.framework/Flutter"))
+            engine = archive.read(member)
+            patched = patch_engine_verify_macho(engine)
+            with open(dest_path, "wb") as f:
+                f.write(patched)
+            return dest_path
         if "flutter.jar" in names:
             # android artifacts nest the engine inside the embedding jar
             with zipfile.ZipFile(io.BytesIO(archive.read("flutter.jar"))) as jar:
@@ -527,9 +606,13 @@ def get_network_lib(
                         + repr(error)
                     )
         if len(libapp_ios[1]) != 0:
-            print(
-                "[!] Shorebird iOS patching is not implemented yet (Mach-O) - the iOS lib stays original"
-            )
+            try:
+                print("[*] Shorebird: fetching + patching engine (iOS) ...")
+                fetch_shorebird_engine(engine_commit, "Flutter", "ios")
+            except Exception as error:
+                print(
+                    "[!] Shorebird iOS engine patching failed: " + repr(error)
+                )
         return
 
     verUrl = "v3-" if patch_dump else "v2-"
