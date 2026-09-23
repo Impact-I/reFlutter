@@ -164,7 +164,12 @@ def _build_engine(libapp_hash: str):
                     flavor_note = ""
                     ver = len(rows) - idx - 1
                 # diagnostics to stderr - local-release parses stdout for the commit
-                print("matched " + csv_name + flavor_note + ", ver " + str(ver), file=sys.stderr)
+                dart_version = (line.get("Dart_Version") or "").strip()
+                print(
+                    "matched " + csv_name + flavor_note + ", ver " + str(ver)
+                    + (", dart " + dart_version if dart_version else ""),
+                    file=sys.stderr,
+                )
                 if (
                     os.path.exists("src/third_party/dart/runtime/vm/dart.cc")
                     or os.path.exists("tools/generate_package_config/pubspec.yaml")
@@ -174,7 +179,7 @@ def _build_engine(libapp_hash: str):
                         "engine/src/flutter/third_party/dart/runtime/vm/dart.cc"
                     )
                 ):
-                    utils.patch_source(libapp_hash, ver, patch_dump)
+                    utils.patch_source(libapp_hash, ver, patch_dump, dart_version)
                 return
 
     print(

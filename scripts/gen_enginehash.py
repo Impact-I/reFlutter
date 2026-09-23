@@ -46,7 +46,7 @@ ENGINE_VERSION_URL = (
 SNAPSHOT_URL = (
     "https://storage.googleapis.com/flutter_infra_release/flutter/{engine}/android-arm64-release/linux-x64.zip"
 )
-CSV_HEADER = "version,Engine_commit,Snapshot_Hash"
+CSV_HEADER = "version,Engine_commit,Snapshot_Hash,Dart_Version"
 
 # Shorebird engine artifacts live in a public GCS bucket that mirrors the
 # vanilla flutter_infra_release layout; the bucket listing is the
@@ -126,13 +126,14 @@ def load_seed_rows(seed_paths):
         with open(path, "r", errors="replace") as seed:
             for line in seed:
                 parts = [part.strip() for part in line.strip().split(",")]
-                if len(parts) != 3 or parts[0] == "version":
+                if len(parts) < 3 or parts[0] == "version":
                     continue
-                version, engine_commit, snapshot_hash = parts
+                version, engine_commit, snapshot_hash = parts[0], parts[1], parts[2]
+                dart_version = parts[3] if len(parts) > 3 else ""
                 if ENGINE_COMMIT_RE.fullmatch(engine_commit) and SNAPSHOT_HASH_RE.fullmatch(
                     snapshot_hash
                 ):
-                    rows[version] = (engine_commit, snapshot_hash)
+                    rows[version] = (engine_commit, snapshot_hash, dart_version)
     return rows
 
 
@@ -165,7 +166,15 @@ def snapshot_hash_of(engine_commit, session, url_template=None):
                 if member is None:
                     return None
                 archive.extract(member, tmp_dir)
-                return ELFF(os.path.join(tmp_dir, member)) or None
+                snapshot_hash = ELFF(os.path.join(tmp_dir, member)) or None
+                if snapshot_hash is None:
+                    return None
+                with open(os.path.join(tmp_dir, member), "rb") as tool:
+                    m = re.search(
+                        rb"(\d+\.\d+\.\d+) \((?:stable|beta|dev)\)", tool.read()
+                    )
+                dart_version = m.group(1).decode() if m else ""
+                return snapshot_hash, dart_version
         except zipfile.BadZipFile:
             return None
 
@@ -184,14 +193,14 @@ def write_rows(out_path, releases, row_of_version):
             seen_versions.add(version)
             row = row_of_version.get(version)
             if row:
-                out.write("{},{},{}\n".format(version, row[0], row[1]))
+                out.write("{},{},{},{}\n".format(version, row[0], row[1], row[2]))
                 written += 1
         # retain rows for versions outside the current manifest (e.g. a
         # --limit run) so partial runs never shrink the resume seed
         for version in sorted(row_of_version):
             if version not in seen_versions:
                 row = row_of_version[version]
-                out.write("{},{},{}\n".format(version, row[0], row[1]))
+                out.write("{},{},{},{}\n".format(version, row[0], row[1], row[2]))
                 written += 1
     os.replace(partial_path, out_path)
     return written
@@ -275,7 +284,7 @@ def main_shorebird(args):
         out.write(CSV_HEADER + "\n")
         for version in sorted(row_of_version, reverse=True):
             row = row_of_version[version]
-            out.write("{},{},{}\n".format(version, row[0], row[1]))
+            out.write("{},{},{},{}\n".format(version, row[0], row[1], row[2]))
             written += 1
     os.replace(partial_path, out_path)
     print(

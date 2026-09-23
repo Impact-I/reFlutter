@@ -803,7 +803,14 @@ def patch_library(
         open("libflutter_x86.so", "wb").write(buffer)
 
 
-def patch_source(libapp_hash: str, ver: int, patch_dump: bool):
+def patch_source(libapp_hash: str, ver: int, patch_dump: bool, dart_version: str = ""):
+    # Dart-version gating replaces the row-index heuristic where the data
+    # exists: engines on Dart >= 3.1 use the modern patch branches (JSONL
+    # dump, new BUILD.gn layout). Rows without a Dart_Version column keep
+    # the ver-index behavior unchanged.
+    m = re.match(r"(\d+)\.(\d+)\.(\d+)", dart_version or "")
+    if m and tuple(int(p) for p in m.groups()) >= (3, 1, 0):
+        ver = max(ver, 55)
     try:
         os.makedirs(os.path.join(os.environ["HOME"], "Documents"))
     except Exception:
