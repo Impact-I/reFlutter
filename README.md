@@ -127,15 +127,13 @@ frida -U -f <package> -l frida.js
 
 ### Shorebird builds
 
-Apps built with [Shorebird](https://shorebird.dev) use a patched Flutter engine whose snapshot hash differs from the vanilla Flutter release it is based on. reFlutter detects `flutter_assets/shorebird.yaml` in the package automatically and matches the hash against [enginehash_sb.csv](https://github.com/Impact-I/reFlutter/blob/main/enginehash_sb.csv) instead. Refresh that list any time with:
+Apps built with [Shorebird](https://shorebird.dev) use a patched Flutter engine whose snapshot hash differs from the vanilla Flutter release it is based on. reFlutter identifies these automatically (a hash found only in [enginehash_sb.csv](https://github.com/Impact-I/reFlutter/blob/main/enginehash_sb.csv) identifies a Shorebird app even when `flutter_assets/shorebird.yaml` is absent) and patches them for **traffic interception** with no engine build: Shorebird's own engine artifact is fetched from their public bucket for the matched revision, boringssl's certificate-chain verification is patched to succeed unconditionally (a pure-Python ELF walk — symbol table to file offset to an 8-byte arm64 patch — after which the ~150MB of shipped symbols are dropped, since Android's linker only reads program headers), and the app is repacked with it. Refresh the hash list any time with:
 
 ```bash
 python3 scripts/gen_enginehash.py --shorebird
 ```
 
-It enumerates Shorebird's public artifact bucket (`download.shorebird.dev`, which mirrors the `flutter_infra_release` layout) — no authentication needed.
-
-**Status of patched `sb-` engines:** building a vanilla-base engine with a Shorebird snapshot hash baked in is *not* sufficient — verified empirically: the hash matches (`3c9c63bc…` on both sides), but Shorebird's `libapp.so` places code in patchable regions that only their (private) Dart fork's loader understands, so a vanilla engine jumps into a non-executable section and crashes at startup (`SEGV_ACCERR` inside `libapp`). The viable path for Shorebird **traffic interception** is binary-patching Shorebird's own distributed engine artifacts from the public bucket (locate the boringssl certificate-verification function in their compiled `libflutter.so` — the same source as vanilla, so the compiled pattern is derivable from our symbolled builds — and patch it to succeed unconditionally). Dump mode for Shorebird engines remains blocked on the private `shorebirdtech/dart-sdk` fork.
+Notes: our own engines cannot run Shorebird snapshots (their code lives in patchable regions understood only by their private Dart fork's loader — verified empirically), which is exactly why the binary-patch route is used. Android arm64/arm/x64 are handled per-ABI (32-bit ARM pending); Shorebird iOS patching (Mach-O) is not implemented yet and the iOS library stays original. Dump mode for Shorebird engines remains blocked on the private Dart fork.
 
 ### To Do
 
