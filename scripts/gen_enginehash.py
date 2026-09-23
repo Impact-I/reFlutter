@@ -56,7 +56,7 @@ SHOREBIRD = {
     "snapshot_url": (
         "https://storage.googleapis.com/download.shorebird.dev/flutter_infra_release/flutter/{engine}/android-arm64-release/linux-x64.zip"
     ),
-    "out": os.path.join(SCRIPT_DIR, "enginehash_sb.csv"),
+    "out": os.path.join(os.path.dirname(SCRIPT_DIR), "enginehash_sb.csv"),
 }
 
 CONNECT_TIMEOUT = 15  # seconds to establish a connection before failing

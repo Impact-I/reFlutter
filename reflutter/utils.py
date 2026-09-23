@@ -11,6 +11,118 @@ import re
 
 OLD_SOCKET_PATCH_LAST_VERSION = 58
 
+SHOREBIRD_ARTIFACT_URL = (
+    "https://storage.googleapis.com/download.shorebird.dev/flutter_infra_release"
+    "/flutter/{engine}/{artifact}/artifacts.zip"
+)
+# arm64: mov w0, #1 ; ret  - makes boringssl's certificate-chain
+# verification succeed unconditionally (traffic interception without
+# touching the app's snapshot format)
+VERIFY_BYPASS_ARM64 = bytes.fromhex("20008052" "c0035fd6")
+
+
+def patch_engine_verify(data: bytes) -> bytes:
+    """Return a copy of an engine ELF with boringssl's
+    ssl_crypto_x509_session_verify_cert_chain patched to return true.
+
+    Walks the ELF in pure Python (no external tooling): program headers map
+    symbol addresses to file offsets, the symbol table provides the address.
+    Afterwards everything after the last PT_LOAD is dropped and the section
+    table is zeroed - Android's linker only reads program headers, so this
+    strips Shorebird's ~150MB of shipped symbols safely."""
+    import struct
+
+    if data[:4] != b"\x7fELF" or data[4] != 2:
+        raise ValueError("expected a 64-bit ELF engine library")
+    endian = "<" if data[5] == 1 else ">"
+
+    def u16(off):
+        return struct.unpack_from(endian + "H", data, off)[0]
+
+    def u32(off):
+        return struct.unpack_from(endian + "I", data, off)[0]
+
+    def u64(off):
+        return struct.unpack_from(endian + "Q", data, off)[0]
+
+    e_phoff, e_shoff = u64(0x20), u64(0x28)
+    e_phentsize, e_phnum = u16(0x36), u16(0x38)
+    e_shentsize, e_shnum, e_shstrndx = u16(0x3A), u16(0x3C), u16(0x3E)
+
+    segments = []
+    for i in range(e_phnum):
+        b = e_phoff + i * e_phentsize
+        if u32(b) == 1:  # PT_LOAD
+            segments.append((u64(b + 16), u64(b + 8), u64(b + 32)))  # vaddr, off, size
+
+    def vaddr_to_off(v):
+        for vaddr, offset, filesz in segments:
+            if vaddr <= v < vaddr + filesz:
+                return offset + (v - vaddr)
+        raise ValueError("symbol address is not backed by a PT_LOAD segment")
+
+    sections = []
+    for i in range(e_shnum):
+        b = e_shoff + i * e_shentsize
+        sections.append((u32(b), u32(b + 4), u64(b + 24), u64(b + 32)))
+    shstr_off = sections[e_shstrndx][2]
+    symtab = strtab = symtab_size = None
+    for name_idx, sh_type, off, size in sections:
+        end = data.index(b"\0", shstr_off + name_idx)
+        name = data[shstr_off + name_idx : end].decode()
+        if name == ".symtab" and sh_type == 2:
+            symtab, symtab_size = off, size
+        elif name == ".strtab" and sh_type == 3:
+            strtab = off
+    if symtab is None or strtab is None:
+        raise ValueError(
+            "engine ELF carries no symbol table - pattern-based patching not implemented"
+        )
+
+    target = b"ssl_crypto_x509_session_verify_cert_chain"
+    out = bytearray(data)
+    entry = 24  # Elf64_Sym
+    for i in range(symtab_size // entry):
+        b = symtab + i * entry
+        st_name = u32(b)
+        if not st_name:
+            continue
+        name_end = data.index(b"\0", strtab + st_name)
+        if target in data[strtab + st_name : name_end]:
+            off = vaddr_to_off(u64(b + 8))
+            out[off : off + 8] = VERIFY_BYPASS_ARM64
+            # drop everything past the last PT_LOAD and void the section table
+            tail = max(offset + filesz for _, offset, filesz in segments)
+            struct.pack_into(endian + "Q", out, 0x28, 0)  # e_shoff = 0
+            struct.pack_into(endian + "H", out, 0x3C, 0)  # e_shnum = 0
+            return bytes(out[:tail])
+    raise ValueError("verify_cert_chain symbol not found in engine")
+
+
+def fetch_shorebird_engine(engine_commit: str, dest_path: str, arch: str):
+    """Download Shorebird's own engine artifact for this revision, patch its
+    certificate verification, and write it to dest_path. Using their binary
+    sidesteps their private Dart fork entirely - their engine loads their
+    snapshot format, we only defang TLS validation."""
+    import io
+
+    artifacts = {
+        "arm64": "android-arm64-release",
+        "arm": "android-arm-release",
+        "x64": "android-x64-release",
+    }
+    url = SHOREBIRD_ARTIFACT_URL.format(
+        engine=engine_commit, artifact=artifacts[arch]
+    )
+    raw = urlopen(url).read()
+    with zipfile.ZipFile(io.BytesIO(raw)) as archive:
+        member = next(n for n in archive.namelist() if n.endswith("libflutter.so"))
+        engine = archive.read(member)
+    patched = patch_engine_verify(engine)
+    with open(dest_path, "wb") as f:
+        f.write(patched)
+    return dest_path
+
 
 def replace_file_text(fname, textOrig, textReplace):
     if fname[:15] == "src/third_party":  # fix for new flutter source path
@@ -68,44 +180,56 @@ def zip_dir(path: str, ziph: zipfile.ZipFile, zip_stored: bool):
                 )
 
 
-def check_libapp_hash(libapp_hash: str, shorebird: bool = False) -> int | None:
+def check_libapp_hash(libapp_hash: str, shorebird_hint: bool = False):
+    """Resolve a snapshot hash against the engine CSVs.
+
+    Returns (version_index, engine_commit, is_shorebird). A hash found only
+    in enginehash_sb.csv identifies a Shorebird-built app even when the
+    shorebird.yaml marker is absent (plain fork builds do not ship it)."""
     if libapp_hash == "":
         print(
             "\nIs this really a Flutter app? \nThere was no libapp.so (Android) or App (iOS) found in the package.\n\n Make sure there is arm64-v8a/libapp.so or App.framework/App file in the package. If flutter library name differs you need to rename it properly before patching.\n"
         )
         sys.exit(1)
-    csv_name = "enginehash_sb.csv" if shorebird else "enginehash.csv"
-    resp = (
-        urlopen(
-            "https://raw.githubusercontent.com/Impact-I/reFlutter/main/" + csv_name
-        )
-        .read()
-        .decode("utf-8")
+    order = (
+        ("enginehash_sb.csv", "enginehash.csv")
+        if shorebird_hint
+        else ("enginehash.csv", "enginehash_sb.csv")
     )
-    if libapp_hash not in resp:
-        shutil.rmtree("libappTmp", ignore_errors=True)
-        shutil.rmtree("release", ignore_errors=True)
-        if shorebird:
-            print(
-                "\n Engine SnapshotHash: "
-                + libapp_hash
-                + "\n\n This Shorebird engine is not in enginehash_sb.csv yet.\n Shorebird hashes are collected from Shorebird's public artifact bucket -\n run scripts/gen_enginehash.py --shorebird to refresh the list, then build\n the patched engine via the Shorebird flutter fork (see README).\n"
+    for csv_name in order:
+        try:
+            resp = (
+                urlopen(
+                    "https://raw.githubusercontent.com/Impact-I/reFlutter/main/"
+                    + csv_name
+                )
+                .read()
+                .decode("utf-8")
             )
-        else:
-            print(
-                "\n Engine SnapshotHash: "
-                + libapp_hash
-                + "\n\n This engine is currently not supported.\n Most likely this flutter application uses the Debug version engine which you need to build manually using Docker at the moment.\n Or it may be a Shorebird-built app (check for flutter_assets/shorebird.yaml).\n More details: https://github.com/Impact-I/reFlutter\n"
-            )
-        sys.exit(1)
+        except Exception:
+            continue
+        if libapp_hash not in resp:
+            continue
+        resp = resp.splitlines()
+        _index = 0
+        for _ in resp:
+            _index += 1
+            if libapp_hash in _:
+                break
+        engine_commit = resp[_index - 1].split(",")[1]
+        is_sb = csv_name == "enginehash_sb.csv"
+        if is_sb:
+            print("[*] Shorebird engine identified (enginehash_sb.csv)")
+        return len(resp) + 1 - _index, engine_commit, is_sb
 
-    resp = resp.splitlines()
-    _index = 0
-    for _ in resp:
-        _index += 1
-        if libapp_hash in _:
-            break
-    return len(resp) + 1 - _index
+    shutil.rmtree("libappTmp", ignore_errors=True)
+    shutil.rmtree("release", ignore_errors=True)
+    print(
+        "\n Engine SnapshotHash: "
+        + libapp_hash
+        + "\n\n This engine is currently not supported.\n Most likely this flutter application uses the Debug version engine which you need to build manually using Docker at the moment,\n or a Shorebird engine newer than our collected list (run scripts/gen_enginehash.py --shorebird to refresh).\n More details: https://github.com/Impact-I/reFlutter\n"
+    )
+    sys.exit(1)
 
 
 # Byte-level form of the scan elff() used to run char-by-char: find runs of
@@ -207,11 +331,14 @@ def replace_flutter_lib(
     no_interact: bool = False,
     shorebird: bool = False,
 ):
-    flutter_version_index = check_libapp_hash(libapp_hash, shorebird)
+    flutter_version_index, engine_commit, shorebird = check_libapp_hash(
+        libapp_hash, shorebird
+    )
 
     burp_ip = None
     if (
-        flutter_version_index is not None
+        not shorebird
+        and flutter_version_index is not None
         and flutter_version_index <= OLD_SOCKET_PATCH_LAST_VERSION
     ):
         if no_interact:
@@ -229,6 +356,7 @@ def replace_flutter_lib(
         patch_dump,
         burp_ip,
         shorebird,
+        engine_commit,
     )
     if (
         not os.path.exists("libflutter_arm64.so")
@@ -362,11 +490,31 @@ def get_network_lib(
     patch_dump: bool,
     burp_ip: str | None,
     shorebird: bool = False,
+    engine_commit: str = "",
 ):
-    verUrl = "v3-" if patch_dump else "v2-"
     if shorebird:
-        # Shorebird-built engines get their own asset namespace
-        verUrl = verUrl + "sb-"
+        # Shorebird apps cannot use our engines (their snapshot format needs
+        # their private Dart fork's loader). Instead we take Shorebird's own
+        # engine artifact from their public bucket and patch boringssl's
+        # certificate-chain verification to succeed unconditionally.
+        try:
+            for tup, lib, arch in (
+                (libapp_arm64, "libflutter_arm64.so", "arm64"),
+                (libapp_arm, "libflutter_arm.so", "arm"),
+                (libapp_x64, "libflutter_x64.so", "x64"),
+            ):
+                if len(tup[1]) != 0:
+                    print("[*] Shorebird: fetching + patching engine (" + arch + ") ...")
+                    fetch_shorebird_engine(engine_commit, lib, arch)
+        except Exception as error:
+            print("[!] Shorebird engine patching failed: " + str(error))
+        if len(libapp_ios[1]) != 0:
+            print(
+                "[!] Shorebird iOS patching is not implemented yet (Mach-O) - the iOS lib stays original"
+            )
+        return
+
+    verUrl = "v3-" if patch_dump else "v2-"
     if len(libapp_ios[1]) != 0:
         try:
             urlretrieve(
