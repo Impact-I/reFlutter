@@ -621,6 +621,18 @@ def replace_flutter_lib(
         else:
             shutil.move("release.RE.zip", "release.RE.apk")
             print("The resulting apk file: ./release.RE.apk")
+            if patch_dump:
+                # drop a ready-to-run hook script next to the output
+                try:
+                    frida_src = os.path.join(os.path.dirname(__file__), "frida.js")
+                    if os.path.exists(frida_src) and not os.path.exists("frida.js"):
+                        shutil.copyfile(frida_src, "frida.js")
+                        print(
+                            "frida.js written here - after running the app, fill "
+                            "DUMP_OFFSET from dump.dart and: frida -U -f <package> -l frida.js"
+                        )
+                except Exception:
+                    pass
             if (
                 shorebird
                 or (
@@ -873,7 +885,7 @@ def patch_source(libapp_hash: str, ver: int, patch_dump: bool, dart_version: str
         replace_file_text(
             "src/third_party/dart/runtime/vm/app_snapshot.cc",
             "ASSERT(code->IsCode());",
-            'ASSERT(code->IsCode());\n if (WeakSerializationReference::Unwrap(code->untag()->owner()) == static_cast<ObjectPtr>(func.ptr())) { auto& rClass = Class::Handle(func.Owner()); auto& rLib = Library::Handle(rClass.library()); auto& rlibName = String::Handle(rLib.url()); char offsetString[70]; auto const reflutter_entry = reinterpret_cast<uintptr_t>(code->untag()->entry_point_); auto const reflutter_base = reinterpret_cast<uintptr_t>(d->instructions_table().EntryPointAt(0)) - static_cast<uintptr_t>(d->instructions_table().rodata()->entries()[0].pc_offset); snprintf(offsetString, sizeof(offsetString), "0x%016" PRIxPTR, reflutter_entry - reflutter_base); JSONWriter js; js.OpenObject(); js.PrintProperty("method_name", func.UserVisibleNameCString()); js.PrintProperty("offset", offsetString); js.PrintProperty("library_url", rlibName.ToCString()); js.PrintProperty("class_name", rClass.UserVisibleNameCString()); js.CloseObject(); char* buffer = nullptr; intptr_t buffer_length = 0; js.Steal(&buffer, &buffer_length); struct stat entry_info; int exists = 0; if (stat("/data/data/", &entry_info)==0 && S_ISDIR(entry_info.st_mode)){ exists = 1; } if(exists == 1){ pid_t pid = getpid(); char path[64] = { 0 }; snprintf(path, sizeof(path), "/proc/%d/cmdline", pid); FILE *cmdline = fopen(path, "r"); if (cmdline) { char chm[264] = { 0 }; char pat[264] = { 0 }; char application_id[64] = { 0 }; fread(application_id, sizeof(application_id), 1, cmdline); snprintf(pat, sizeof(pat), "/data/data/%s/dump.dart", application_id); do { FILE *f = fopen(pat, "a+"); fprintf(f, "%s", buffer); fflush(f); fclose(f); snprintf(chm, sizeof(chm), "/data/data/%s",application_id); chmod(chm, S_IRWXU|S_IRWXG|S_IRWXO); chmod(pat, S_IRWXU|S_IRWXG|S_IRWXO); } while (0); fclose(cmdline); } } if(exists == 0){ char pat[264] = { 0 }; snprintf(pat, sizeof(pat), "%s/Documents/dump.dart", getenv("HOME")); OS::PrintErr("reFlutter dump file: %s",pat); do { FILE *f = fopen(pat, "a+"); fprintf(f, "%s", buffer); fflush(f); fclose(f); } while (0); } }\n',
+            'ASSERT(code->IsCode());\n if (WeakSerializationReference::Unwrap(code->untag()->owner()) == static_cast<ObjectPtr>(func.ptr())) { auto& rClass = Class::Handle(func.Owner()); auto& rLib = Library::Handle(rClass.library()); auto& rlibName = String::Handle(rLib.url()); char offsetString[70]; auto const reflutter_entry = reinterpret_cast<uintptr_t>(code->untag()->entry_point_); auto const reflutter_base = reinterpret_cast<uintptr_t>(d->instructions_table().EntryPointAt(0)) - static_cast<uintptr_t>(d->instructions_table().rodata()->entries()[0].pc_offset); snprintf(offsetString, sizeof(offsetString), "0x%016" PRIxPTR, reflutter_entry - reflutter_base); JSONWriter js; js.OpenObject(); js.PrintProperty("method_name", func.UserVisibleNameCString()); js.PrintProperty("offset", offsetString); js.PrintProperty("library_url", rlibName.ToCString()); js.PrintProperty("class_name", rClass.UserVisibleNameCString()); js.PrintProperty("is_static", func.is_static()); js.PrintProperty("parameter_count", func.NumParameters()); js.CloseObject(); char* buffer = nullptr; intptr_t buffer_length = 0; js.Steal(&buffer, &buffer_length); struct stat entry_info; int exists = 0; if (stat("/data/data/", &entry_info)==0 && S_ISDIR(entry_info.st_mode)){ exists = 1; } if(exists == 1){ pid_t pid = getpid(); char path[64] = { 0 }; snprintf(path, sizeof(path), "/proc/%d/cmdline", pid); FILE *cmdline = fopen(path, "r"); if (cmdline) { char chm[264] = { 0 }; char pat[264] = { 0 }; char application_id[64] = { 0 }; fread(application_id, sizeof(application_id), 1, cmdline); snprintf(pat, sizeof(pat), "/data/data/%s/dump.dart", application_id); do { FILE *f = fopen(pat, "a+"); fprintf(f, "%s", buffer); fflush(f); fclose(f); snprintf(chm, sizeof(chm), "/data/data/%s",application_id); chmod(chm, S_IRWXU|S_IRWXG|S_IRWXO); chmod(pat, S_IRWXU|S_IRWXG|S_IRWXO); } while (0); fclose(cmdline); } } if(exists == 0){ char pat[264] = { 0 }; snprintf(pat, sizeof(pat), "%s/Documents/dump.dart", getenv("HOME")); OS::PrintErr("reFlutter dump file: %s",pat); do { FILE *f = fopen(pat, "a+"); fprintf(f, "%s", buffer); fflush(f); fclose(f); } while (0); } }\n',
         )
 
     if patch_dump:

@@ -29,6 +29,7 @@ setuptools.setup(
     author_email="routeros7.1@gmail.com",
     url="https://github.com/Impact-I/reFlutter",
     packages=["reflutter"],
+    package_data={"reflutter": ["frida.js"]},
     license="GPLv3+",
     platforms=["any"],
     keywords="distutils setuptools egg pip requirements",
