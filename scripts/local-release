@@ -183,7 +183,7 @@ if $DO_BUILD; then
     [[ -n "$ENGINE_COMMIT" ]] || die "--shorebird requires --base <vanilla engine commit> (the Flutter version the Shorebird engine targets)"
     cp "$REPO_ROOT/scripts/enginehash_sb.csv" . 2>/dev/null || true
   else
-    ENGINE_COMMIT="$(reflutter -b "$SNAPSHOT_HASH")"
+    ENGINE_COMMIT="$(reflutter -b "$SNAPSHOT_HASH" | head -1)"
   fi
   say "Engine commit: $ENGINE_COMMIT"
   git fetch origin "$ENGINE_COMMIT"

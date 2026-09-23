@@ -163,7 +163,8 @@ def _build_engine(libapp_hash: str):
                 else:
                     flavor_note = ""
                     ver = len(rows) - idx - 1
-                print("matched " + csv_name + flavor_note + ", ver " + str(ver))
+                # diagnostics to stderr - local-release parses stdout for the commit
+                print("matched " + csv_name + flavor_note + ", ver " + str(ver), file=sys.stderr)
                 if (
                     os.path.exists("src/third_party/dart/runtime/vm/dart.cc")
                     or os.path.exists("tools/generate_package_config/pubspec.yaml")
