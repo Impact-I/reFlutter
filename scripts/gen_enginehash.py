@@ -172,6 +172,13 @@ def write_rows(out_path, releases, row_of_version):
             if row:
                 out.write("{},{},{}\n".format(version, row[0], row[1]))
                 written += 1
+        # retain rows for versions outside the current manifest (e.g. a
+        # --limit run) so partial runs never shrink the resume seed
+        for version in sorted(row_of_version):
+            if version not in seen_versions:
+                row = row_of_version[version]
+                out.write("{},{},{}\n".format(version, row[0], row[1]))
+                written += 1
     os.replace(partial_path, out_path)
     return written
 
@@ -205,7 +212,10 @@ def main():
     if args.limit:
         releases = releases[: args.limit]
 
-    seed_paths = args.seed or [args.out, os.path.join(SCRIPT_DIR, "enginehash.tmp")]
+    seed_paths = list(args.seed or []) + [
+        args.out,
+        os.path.join(SCRIPT_DIR, "enginehash.tmp"),
+    ]
     row_of_version = load_seed_rows(seed_paths)
     engine_snapshot = {
         engine_commit: snapshot_hash

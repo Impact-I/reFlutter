@@ -3,6 +3,7 @@
 import argparse
 import os
 import csv
+import socket
 
 try:
     from . import utils
@@ -14,6 +15,11 @@ from zipfile import ZipFile
 from os.path import join
 import zipfile
 import glob
+import shutil
+
+# every urlretrieve/urlopen in the package inherits this - without it a
+# stalled connection hangs the tool forever (same bug class gen_enginehash had)
+socket.setdefaulttimeout(60)
 
 # inits
 patch_dump = False
@@ -23,6 +29,10 @@ no_interact = False
 
 def _patch_file(file_name: str):
     print("[*] Processing...")
+    # a leftover tree from a previous run would silently merge two different
+    # apps into one package
+    shutil.rmtree("release", ignore_errors=True)
+    shutil.rmtree("libappTmp", ignore_errors=True)
     zip_stored = False
     libapp_arm64 = "", ""
     libapp_arm = "", ""
@@ -60,7 +70,9 @@ def _patch_file(file_name: str):
                 zip_object.extract(file_name, "libappTmp")
                 libapp_x64 = file_name, utils.elff(join("libappTmp", file_name))
                 libapp_hash = libapp_x64[1]
-            if file_name.endswith("86/libflutter.so"):
+            if file_name.endswith("86/libapp.so"):
+                if zip_object.getinfo(file_name).compress_type == zipfile.ZIP_STORED:
+                    zip_stored = True
                 zip_object.extract(file_name, "libappTmp")
                 libapp_x86 = file_name, utils.elff(join("libappTmp", file_name))
                 libapp_hash = libapp_x86[1]

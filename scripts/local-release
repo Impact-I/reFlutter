@@ -213,9 +213,17 @@ if $DO_BUILD; then
     local out="$RELEASE_DIR/$variant"
     mkdir -p "$out"
 
-    # Reset tracked source files to clean gclient-synced state, then re-patch
+    # Reset tracked source files to clean gclient-synced state, then re-patch.
+    # The nested gclient-managed repos must be reset too - a checkout at the
+    # solution root leaves the previous variant's patches in dart/boringssl
+    # and a later v2-only run would ship v3 instrumentation.
     cd "$GCLIENT_DIR"
     git checkout -- . 2>/dev/null || true
+    for nested in "$ENG/src/flutter/third_party/dart" "$ENG/src/flutter/third_party/boringssl/src"; do
+      if [[ -d "$nested/.git" ]]; then
+        git -C "$nested" checkout -- . 2>/dev/null || true
+      fi
+    done
     reflutter -b "$SNAPSHOT_HASH" $reflutter_flags
     verify_patches "$reflutter_flags"
 
@@ -251,25 +259,36 @@ fi
 
 # ---- upload ----
 if $DO_UPLOAD; then
+  # create the release if needed, otherwise refresh the assets in place so
+  # re-runs (e.g. shipping a fixed engine under the same snapshot-hash tag)
+  # do not fail on the existing tag
+  release_upload() {
+    local tag="$1"
+    local title="$2"
+    shift 2
+    if gh release view "$tag" --repo Impact-I/reFlutter >/dev/null 2>&1; then
+      say "Release $tag already exists - clobbering assets …"
+      gh release upload "$tag" "$@" --clobber --repo Impact-I/reFlutter
+    else
+      gh release create "$tag" "$@" \
+        --title "$title" \
+        --notes "reFlutter engine build. Snapshot hash: $SNAPSHOT_HASH" \
+        --repo Impact-I/reFlutter
+    fi
+  }
+
   upload_one_variant() {
     local variant="$1"
     local out="$RELEASE_DIR/$variant"
 
     say "Uploading ios-$variant-$SNAPSHOT_HASH …"
-    gh release create "ios-$variant-$SNAPSHOT_HASH" \
-      "$out/Flutter" \
-      --title "iOS $variant – $SNAPSHOT_HASH" \
-      --notes "reFlutter iOS engine build ($variant). Snapshot hash: $SNAPSHOT_HASH" \
-      --repo Impact-I/reFlutter
+    release_upload "ios-$variant-$SNAPSHOT_HASH" "iOS $variant – $SNAPSHOT_HASH" "$out/Flutter"
 
     say "Uploading android-$variant-$SNAPSHOT_HASH …"
-    gh release create "android-$variant-$SNAPSHOT_HASH" \
+    release_upload "android-$variant-$SNAPSHOT_HASH" "Android $variant – $SNAPSHOT_HASH" \
       "$out"/libflutter_arm64.so \
       "$out"/libflutter_arm.so \
-      "$out"/libflutter_x64.so \
-      --title "Android $variant – $SNAPSHOT_HASH" \
-      --notes "reFlutter Android engine build ($variant). Snapshot hash: $SNAPSHOT_HASH" \
-      --repo Impact-I/reFlutter
+      "$out"/libflutter_x64.so
   }
 
   $BUILD_V2 && upload_one_variant "v2"

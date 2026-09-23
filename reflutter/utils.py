@@ -73,7 +73,7 @@ def check_libapp_hash(libapp_hash: str) -> int | None:
         print(
             "\nIs this really a Flutter app? \nThere was no libapp.so (Android) or App (iOS) found in the package.\n\n Make sure there is arm64-v8a/libapp.so or App.framework/App file in the package. If flutter library name differs you need to rename it properly before patching.\n"
         )
-        sys.exit()
+        sys.exit(1)
     resp = (
         urlopen(
             "https://raw.githubusercontent.com/Impact-I/reFlutter/main/enginehash.csv"
@@ -82,13 +82,14 @@ def check_libapp_hash(libapp_hash: str) -> int | None:
         .decode("utf-8")
     )
     if libapp_hash not in resp:
-        shutil.rmtree("libappTmp")
+        shutil.rmtree("libappTmp", ignore_errors=True)
+        shutil.rmtree("release", ignore_errors=True)
         print(
             "\n Engine SnapshotHash: "
             + libapp_hash
             + "\n\n This engine is currently not supported.\n Most likely this flutter application uses the Debug version engine which you need to build manually using Docker at the moment.\n More details: https://github.com/Impact-I/reFlutter\n"
         )
-        sys.exit()
+        sys.exit(1)
 
     resp = resp.splitlines()
     _index = 0
@@ -176,10 +177,13 @@ def convert_ip_fix(IPBurp: str):
 
 
 def input_burp_ip() -> str:
-    burp_ip = input("\nExample: (192.168.1.154) etc.\nPlease enter your BurpSuite IP: ")
-    if not re.match(r"[0-9]+(?:\.[0-9]+){3}", burp_ip):
+    while True:
+        burp_ip = input("\nExample: (192.168.1.154) etc.\nPlease enter your BurpSuite IP: ")
+        if re.fullmatch(r"(?:[0-9]{1,3}\.){3}[0-9]{1,3}", burp_ip) and all(
+            0 <= int(octet) <= 255 for octet in burp_ip.split(".")
+        ):
+            break
         print("Invalid IP Address")
-        input_burp_ip()
     return convert_ip_fix(burp_ip)
 
 
@@ -202,7 +206,9 @@ def replace_flutter_lib(
         and flutter_version_index <= OLD_SOCKET_PATCH_LAST_VERSION
     ):
         if no_interact:
-            burp_ip = "127.0.0.1"
+            # must be exactly 15 chars like the hardcoded placeholder in the
+            # engine binary - convert_ip_fix guarantees that ("127.000.000.001")
+            burp_ip = convert_ip_fix("127.0.0.1")
         else:
             burp_ip = input_burp_ip()
     get_network_lib(
@@ -243,6 +249,23 @@ def replace_flutter_lib(
         or os.path.exists("libflutter_x86.so")
         or os.path.exists("Flutter")
     ):
+        missing_variants = [
+            name
+            for name, tup, lib in (
+                ("ios", libapp_ios, "Flutter"),
+                ("arm64", libapp_arm64, "libflutter_arm64.so"),
+                ("arm", libapp_arm, "libflutter_arm.so"),
+                ("x64", libapp_x64, "libflutter_x64.so"),
+                ("x86", libapp_x86, "libflutter_x86.so"),
+            )
+            if len(tup[1]) != 0 and not os.path.exists(lib)
+        ]
+        if missing_variants:
+            print(
+                "\n[!] WARNING: no patched engine downloaded for: "
+                + ", ".join(missing_variants)
+                + " - those variants keep the ORIGINAL engine in the repacked package.\n"
+            )
         try:
             shutil.move(
                 "Flutter",
@@ -286,8 +309,8 @@ def replace_flutter_lib(
         zipf = zipfile.ZipFile("release.RE.zip", "w", zipfile.ZIP_DEFLATED)
         zip_dir("release/", zipf, zip_stored)
         zipf.close()
-        shutil.rmtree("libappTmp")
-        shutil.rmtree("release")
+        shutil.rmtree("libappTmp", ignore_errors=True)
+        shutil.rmtree("release", ignore_errors=True)
         print("\nSnapshotHash: " + libapp_hash)
         if len(libapp_ios[1]) != 0:
             shutil.move("release.RE.zip", "release.RE.ipa")
@@ -407,6 +430,16 @@ def patch_library(
     libapp_ios: tuple,
     burp_ip: str,
 ):
+    if burp_ip is not None and len(burp_ip) != 15:
+        # the placeholder "192.168.133.104" in the engine binary is exactly 15
+        # bytes; a different-length replacement would shift every byte after it
+        # and corrupt the library
+        print(
+            "\n[!] Internal error: proxy IP '{}' is {} bytes, need exactly 15.\n".format(
+                burp_ip, len(burp_ip)
+            )
+        )
+        sys.exit(1)
     if len(libapp_ios[1]) != 0:
         buffer = (
             open("Flutter", "rb")
@@ -498,18 +531,16 @@ def patch_source(libapp_hash: str, ver: int, patch_dump: bool):
             "previous_text_offset_",
         )
     if ver > 38 and patch_dump:
-        replace_file_text(
-            "src/third_party/dart/runtime/vm/app_snapshot.cc",
-            """code->untag()->monomorphic_unchecked_entry_point_ =
-      monomorphic_entry_point + unchecked_offset;""",
-            """auto& offset = instructions_table_.rodata()->entries()[instructions_table_.rodata()->first_entry_with_code + instructions_index_ - 1].pc_offset;\ncode->untag()->monomorphic_unchecked_entry_point_ = offset;""",
-        )
+        # NOTE: the monomorphic_unchecked_entry_point_ assignment must stay
+        # stock - overwriting that live VM dispatch field with a pc_offset made
+        # engines >= 3.44 jump to bogus addresses on unchecked monomorphic
+        # calls (issue #385 startup crashes) and produced duplicated offsets.
 
         # new fix for patch dump
         replace_file_text(
             "src/third_party/dart/runtime/vm/app_snapshot.cc",
             "ASSERT(code->IsCode());",
-            'ASSERT(code->IsCode());\n auto& rClass = Class::Handle(func.Owner()); auto& rLib = Library::Handle(rClass.library()); auto& rlibName = String::Handle(rLib.url()); char offsetString[70]; snprintf(offsetString, sizeof(offsetString), "0x%016" PRIxPTR, static_cast<uintptr_t>(code->untag()->monomorphic_unchecked_entry_point_)); JSONWriter js; js.OpenObject(); js.PrintProperty("method_name", func.UserVisibleNameCString()); js.PrintProperty("offset", offsetString); js.PrintProperty("library_url", rlibName.ToCString()); js.PrintProperty("class_name", rClass.UserVisibleNameCString()); js.CloseObject(); char* buffer = nullptr; intptr_t buffer_length = 0; js.Steal(&buffer, &buffer_length); struct stat entry_info; int exists = 0; if (stat("/data/data/", &entry_info)==0 && S_ISDIR(entry_info.st_mode)){ exists = 1; } if(exists == 1){ pid_t pid = getpid(); char path[64] = { 0 }; snprintf(path, sizeof(path), "/proc/%d/cmdline", pid); FILE *cmdline = fopen(path, "r"); if (cmdline) { char chm[264] = { 0 }; char pat[264] = { 0 }; char application_id[64] = { 0 }; fread(application_id, sizeof(application_id), 1, cmdline); snprintf(pat, sizeof(pat), "/data/data/%s/dump.dart", application_id); do { FILE *f = fopen(pat, "a+"); fprintf(f, "%s", buffer); fflush(f); fclose(f); snprintf(chm, sizeof(chm), "/data/data/%s",application_id); chmod(chm, S_IRWXU|S_IRWXG|S_IRWXO); chmod(pat, S_IRWXU|S_IRWXG|S_IRWXO); } while (0); fclose(cmdline); } } if(exists == 0){ char pat[264] = { 0 }; snprintf(pat, sizeof(pat), "%s/Documents/dump.dart", getenv("HOME")); OS::PrintErr("reFlutter dump file: %s",pat); do { FILE *f = fopen(pat, "a+"); fprintf(f, "%s", buffer); fflush(f); fclose(f); } while (0); }\n',
+            'ASSERT(code->IsCode());\n if (WeakSerializationReference::Unwrap(code->untag()->owner()) == static_cast<ObjectPtr>(func.ptr())) { auto& rClass = Class::Handle(func.Owner()); auto& rLib = Library::Handle(rClass.library()); auto& rlibName = String::Handle(rLib.url()); char offsetString[70]; auto const reflutter_entry = reinterpret_cast<uintptr_t>(code->untag()->entry_point_); auto const reflutter_base = reinterpret_cast<uintptr_t>(d->instructions_table().EntryPointAt(0)) - static_cast<uintptr_t>(d->instructions_table().rodata()->entries()[0].pc_offset); snprintf(offsetString, sizeof(offsetString), "0x%016" PRIxPTR, reflutter_entry - reflutter_base); JSONWriter js; js.OpenObject(); js.PrintProperty("method_name", func.UserVisibleNameCString()); js.PrintProperty("offset", offsetString); js.PrintProperty("library_url", rlibName.ToCString()); js.PrintProperty("class_name", rClass.UserVisibleNameCString()); js.CloseObject(); char* buffer = nullptr; intptr_t buffer_length = 0; js.Steal(&buffer, &buffer_length); struct stat entry_info; int exists = 0; if (stat("/data/data/", &entry_info)==0 && S_ISDIR(entry_info.st_mode)){ exists = 1; } if(exists == 1){ pid_t pid = getpid(); char path[64] = { 0 }; snprintf(path, sizeof(path), "/proc/%d/cmdline", pid); FILE *cmdline = fopen(path, "r"); if (cmdline) { char chm[264] = { 0 }; char pat[264] = { 0 }; char application_id[64] = { 0 }; fread(application_id, sizeof(application_id), 1, cmdline); snprintf(pat, sizeof(pat), "/data/data/%s/dump.dart", application_id); do { FILE *f = fopen(pat, "a+"); fprintf(f, "%s", buffer); fflush(f); fclose(f); snprintf(chm, sizeof(chm), "/data/data/%s",application_id); chmod(chm, S_IRWXU|S_IRWXG|S_IRWXO); chmod(pat, S_IRWXU|S_IRWXG|S_IRWXO); } while (0); fclose(cmdline); } } if(exists == 0){ char pat[264] = { 0 }; snprintf(pat, sizeof(pat), "%s/Documents/dump.dart", getenv("HOME")); OS::PrintErr("reFlutter dump file: %s",pat); do { FILE *f = fopen(pat, "a+"); fprintf(f, "%s", buffer); fflush(f); fclose(f); } while (0); } }\n',
         )
 
     if patch_dump:
