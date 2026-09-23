@@ -904,6 +904,20 @@ def patch_source(libapp_hash: str, ver: int, patch_dump: bool, dart_version: str
             "Var('flutter_git') + '/third_party/tinygltf.git' + '@' + '9bb5806df4055ac973b970ba5b3e27ce27d98148',",
             "'https://github.com/syoyo/tinygltf.git' + '@' + '9bb5806df4055ac973b970ba5b3e27ce27d98148',",
         )
+        # 3.24-era libcxx headers break against the macOS 26/27 SDK's math.h
+        # (::isnan/isinf as unresolved using_if_exists) - the 3.47.5-era libcxx
+        # compiles the same sources fine on this SDK (proven by our modern
+        # builds), so roll the pair forward for pre-merge host builds
+        replace_file_text(
+            _deps,
+            "Var('llvm_git') + '/llvm-project/libcxx' + '@' + '44079a4cc04cdeffb9cfe8067bfb3c276fb2bab0',",
+            "Var('llvm_git') + '/llvm-project/libcxx' + '@' + 'bd557f6f764d1e40b62528a13b124ce740624f8f',",
+        )
+        replace_file_text(
+            _deps,
+            "Var('llvm_git') + '/llvm-project/libcxxabi' + '@' + '2ce528fb5e0f92e57c97ec3ff53b75359d33af12',",
+            "Var('llvm_git') + '/llvm-project/libcxxabi' + '@' + 'a4dda1589d37a7e4b4f7a81ebad01b1083f2e726',",
+        )
 
     if ver >= 24 and patch_dump:
         replace_file_text(
