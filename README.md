@@ -138,11 +138,15 @@ It locates boringssl's certificate-chain verification inside the loaded
 libflutter.so through its symbol table (the function is internal-linkage,
 so it is read from .symtab, not .dynsym) and patches it to accept any
 chain - route the device through your proxy and you are intercepting.
-This needs an engine that still carries a symbol table (Shorebird
-engines, debug/profile builds, and current stock release engines do; a
-fully stripped engine is not supported here - use reFlutter repack mode).
+This needs an engine that still carries a symbol table: Shorebird
+engines ship unstripped (~150 MB libflutter.so), and debug/profile
+builds keep theirs. Stock release APKs ship a stripped engine (verified:
+no .symtab in the wild, and the bucket's symbols.zip is a separate link
+whose addresses do not transfer) - for those use reFlutter repack mode,
+which swaps in a prebuilt engine with the bypass compiled in.
 arm, arm64 and x64 devices are handled per-ISA; other arches abort
-without writing anything.
+without writing anything. Requires frida-server 17.x on Android 15/16
+(16.x kills system_server there; verified 17.9.9 works on API 36).
 
 ### Shorebird builds
 
