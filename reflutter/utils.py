@@ -971,6 +971,15 @@ def patch_source(libapp_hash: str, ver: int, patch_dump: bool, dart_version: str
                         _f.write(_content)
                     print("[*] libcxx roll updated " + _path)
 
+    # the rolled libcxx's clamp_to_integral.h uses the INFINITY macro,
+    # which SDK 26/27's math.h does not expose under -std=c++20 for this
+    # TU chain - the float builtin is the semantically identical spelling
+    for _f in (
+        "src/flutter/third_party/libcxx/include/__random/clamp_to_integral.h",
+        "engine/src/flutter/third_party/libcxx/include/__random/clamp_to_integral.h",
+    ):
+        replace_file_text(_f, ", INFINITY))", ", __builtin_inff()))")
+
     if ver >= 24 and patch_dump:
         replace_file_text(
             "src/third_party/dart/runtime/vm/clustered_snapshot.cc",
