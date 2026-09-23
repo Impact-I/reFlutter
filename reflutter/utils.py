@@ -943,16 +943,23 @@ def patch_source(libapp_hash: str, ver: int, patch_dump: bool, dart_version: str
         # tree (each overlay version rewrites its own marker). Modern trees
         # match neither and stay untouched.
         if '"src/debug.cpp"' in _old_build or "llvm_libc dropped" in _old_build:
-            if _old_build != _libcxx_build:
-                with open(_lp + "/BUILD.gn", "w") as _f:
-                    _f.write(_libcxx_build)
-                with open(_lp + "/config/__config_site", "w") as _f:
-                    _f.write(_libcxx_cfg)
-                # the rolled libcxx's <__assert> pulls in this vendor-provided
-                # header - flutter ships it in the same config dir
-                with open(_lp + "/config/__assertion_handler", "w") as _f:
-                    _f.write(_libcxx_assert)
-                print("[*] libcxx build integration rolled (3.24-era -> 3.32-era) at " + _lp)
+            # converge EACH file independently: a reused tree can carry an
+            # up-to-date BUILD.gn while missing a file added by a newer
+            # overlay version
+            for _path, _content in (
+                (_lp + "/BUILD.gn", _libcxx_build),
+                (_lp + "/config/__config_site", _libcxx_cfg),
+                (_lp + "/config/__assertion_handler", _libcxx_assert),
+            ):
+                try:
+                    with open(_path, "r") as _f:
+                        _cur = _f.read()
+                except OSError:
+                    _cur = None
+                if _cur != _content:
+                    with open(_path, "w") as _f:
+                        _f.write(_content)
+                    print("[*] libcxx roll updated " + _path)
 
     if ver >= 24 and patch_dump:
         replace_file_text(
