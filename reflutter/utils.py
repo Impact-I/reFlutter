@@ -916,7 +916,7 @@ def patch_source(libapp_hash: str, ver: int, patch_dump: bool, dart_version: str
         replace_file_text(
             _deps,
             "Var('llvm_git') + '/llvm-project/libcxxabi' + '@' + '2ce528fb5e0f92e57c97ec3ff53b75359d33af12',",
-            "Var('llvm_git') + '/llvm-project/libcxxabi' + '@' + 'a4dda1589d37a7e4b4f7a81ebad01b1083f2e726',",
+            "Var('llvm_git') + '/llvm-project/libcxxabi' + '@' + 'a4dda1589d37a7e4b4f7a81ebad01b1083f2e726',\n  'src/flutter/third_party/llvm_libc':\n  Var('llvm_git') + '/llvm-project/libc' + '@' + '5af39a19a1ad51ce93972cdab206dcd3ff9b6afa',",
         )
     # the dep roll alone is half a roll: the 3.24-era build integration still
     # lists src/debug.cpp (removed upstream) and its __config_site lacks the
@@ -931,6 +931,8 @@ def patch_source(libapp_hash: str, ver: int, patch_dump: bool, dart_version: str
         _libcxx_cfg = _f.read()
     with open(os.path.join(_patch_dir, "libcxx_assertion_handler"), "r") as _f:
         _libcxx_assert = _f.read()
+    with open(os.path.join(_patch_dir, "llvm_libc_build.gn"), "r") as _f:
+        _llvm_libc_build = _f.read()
     for _base in ("src/flutter/", "engine/src/flutter/", ""):
         _lp = _base + "build/secondary/flutter/third_party/libcxx"
         try:
@@ -938,11 +940,14 @@ def patch_source(libapp_hash: str, ver: int, patch_dump: bool, dart_version: str
                 _old_build = _f.read()
         except OSError:
             continue
-        # '"src/debug.cpp"' = the pristine 3.24-era file; the marker comment
-        # = one of OUR earlier overlays carried forward in a reused working
-        # tree (each overlay version rewrites its own marker). Modern trees
-        # match neither and stay untouched.
-        if '"src/debug.cpp"' in _old_build or "llvm_libc dropped" in _old_build:
+        # '"src/debug.cpp"' = the pristine 3.24-era file; a reflutter marker
+        # comment = one of OUR overlays (any version) carried forward in a
+        # reused working tree. Modern trees match neither and stay untouched.
+        if (
+            '"src/debug.cpp"' in _old_build
+            or "reflutter-libcxx-overlay" in _old_build
+            or "llvm_libc dropped" in _old_build
+        ):
             # converge EACH file independently: a reused tree can carry an
             # up-to-date BUILD.gn while missing a file added by a newer
             # overlay version
@@ -950,11 +955,16 @@ def patch_source(libapp_hash: str, ver: int, patch_dump: bool, dart_version: str
                 (_lp + "/BUILD.gn", _libcxx_build),
                 (_lp + "/config/__config_site", _libcxx_cfg),
                 (_lp + "/config/__assertion_handler", _libcxx_assert),
+                (
+                    _base + "build/secondary/flutter/third_party/llvm_libc/BUILD.gn",
+                    _llvm_libc_build,
+                ),
             ):
                 try:
                     with open(_path, "r") as _f:
                         _cur = _f.read()
                 except OSError:
+                    os.makedirs(os.path.dirname(_path), exist_ok=True)
                     _cur = None
                 if _cur != _content:
                     with open(_path, "w") as _f:
