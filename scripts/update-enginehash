@@ -1,0 +1,30 @@
+#!/bin/bash
+# Weekly engine hash-list refresh - LOCAL scheduler (the org's GitHub
+# Actions are locked by a billing issue, so this runs from the maintainer's
+# machine; .github/workflows/update-enginehash.yml stays dormant for if/when
+# Actions becomes available again).
+#
+# Wire it up with launchd (weekly, Monday 04:23) or any cron you like:
+#   ~/Library/LaunchAgents/dev.reflutter.enginehash.plist
+#     ProgramArguments: ["/Volumes/Lux/dev/opensource/reFlutter/scripts/update-enginehash"]
+#     StartCalendarInterval: {Hour: 4, Minute: 23} Weekday: 1
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+PY="$(command -v python3.10 || command -v python3)"
+export PATH="/opt/homebrew/bin:$PATH"
+
+"$PY" -m pip show requests >/dev/null 2>&1 || "$PY" -m pip install -q requests
+
+cd "$ROOT"
+"$PY" scripts/gen_enginehash.py --workers 6
+"$PY" scripts/gen_enginehash.py --shorebird --workers 6
+
+if git diff --quiet -- scripts/enginehash.tmp.csv enginehash_sb.csv; then
+  echo "$(date '+%F %T') nothing to update"
+  exit 0
+fi
+git add scripts/enginehash.tmp.csv enginehash_sb.csv
+git commit -q -m "auto: refresh engine hash lists (local scheduler)"
+git push origin main
+echo "$(date '+%F %T') hash lists updated and pushed"
