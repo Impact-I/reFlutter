@@ -936,12 +936,17 @@ def patch_source(libapp_hash: str, ver: int, patch_dump: bool, dart_version: str
                 _old_build = _f.read()
         except OSError:
             continue
-        if '"src/debug.cpp"' in _old_build:
-            with open(_lp + "/BUILD.gn", "w") as _f:
-                _f.write(_libcxx_build)
-            with open(_lp + "/config/__config_site", "w") as _f:
-                _f.write(_libcxx_cfg)
-            print("[*] libcxx build integration rolled (3.24-era -> 3.32-era) at " + _lp)
+        # '"src/debug.cpp"' = the pristine 3.24-era file; the marker comment
+        # = one of OUR earlier overlays carried forward in a reused working
+        # tree (each overlay version rewrites its own marker). Modern trees
+        # match neither and stay untouched.
+        if '"src/debug.cpp"' in _old_build or "llvm_libc dropped" in _old_build:
+            if _old_build != _libcxx_build:
+                with open(_lp + "/BUILD.gn", "w") as _f:
+                    _f.write(_libcxx_build)
+                with open(_lp + "/config/__config_site", "w") as _f:
+                    _f.write(_libcxx_cfg)
+                print("[*] libcxx build integration rolled (3.24-era -> 3.32-era) at " + _lp)
 
     if ver >= 24 and patch_dump:
         replace_file_text(
