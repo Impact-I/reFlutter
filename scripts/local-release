@@ -249,7 +249,7 @@ if $DO_BUILD; then
       if ! grep -q "reFlutter dump file" "$dart_root/runtime/vm/app_snapshot.cc"; then
         warn "PATCH MISS: app_snapshot.cc dump instrumentation not applied"; fail=1
       fi
-      if ! grep -q "instructions_table_.rodata()->entries()" "$dart_root/runtime/vm/app_snapshot.cc"; then
+      if ! grep -q "reflutter_entry - reflutter_base" "$dart_root/runtime/vm/app_snapshot.cc"; then
         warn "PATCH MISS: app_snapshot.cc code-offset fix not applied"; fail=1
       fi
       if grep -q "FLAG_print_class_table)" "$dart_root/runtime/vm/dart.cc"; then
