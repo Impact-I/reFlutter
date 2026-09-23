@@ -1036,6 +1036,19 @@ def patch_source(libapp_hash: str, ver: int, patch_dump: bool, dart_version: str
             '#include <fcntl.h>\n#include <sys/stat.h>\n#include <stdlib.h>',
         )
 
+    # SDK 27 annotates the os_signpost APIs with the stack_protector_ignore
+    # attribute, unknown to this era's pinned clang (-Werror kills the TU) -
+    # expand the token to nothing before the SDK header parses
+    for _f in (
+        "src/flutter/third_party/dart/runtime/vm/timeline_macos.cc",
+        "engine/src/flutter/third_party/dart/runtime/vm/timeline_macos.cc",
+    ):
+        replace_file_text(
+            _f,
+            '#include "vm/log.h"\n#include "vm/timeline.h"',
+            '#include "vm/log.h"\n#include "vm/timeline.h"\n\n#define stack_protector_ignore',
+        )
+
     if ver >= 24 and patch_dump:
         replace_file_text(
             "src/third_party/dart/runtime/vm/clustered_snapshot.cc",
