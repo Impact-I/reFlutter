@@ -133,7 +133,9 @@ Apps built with [Shorebird](https://shorebird.dev) use a patched Flutter engine 
 python3 scripts/gen_enginehash.py --shorebird
 ```
 
-It enumerates Shorebird's public artifact bucket (`download.shorebird.dev`, which mirrors the `flutter_infra_release` layout) — no authentication needed. Patched Shorebird engines (`*-sb-<hash>` release assets) additionally require building from the `shorebirdtech/flutter` fork, whose Dart SDK dependency is currently private; that build step is pending upstream access.
+It enumerates Shorebird's public artifact bucket (`download.shorebird.dev`, which mirrors the `flutter_infra_release` layout) — no authentication needed.
+
+**Status of patched `sb-` engines:** building a vanilla-base engine with a Shorebird snapshot hash baked in is *not* sufficient — verified empirically: the hash matches (`3c9c63bc…` on both sides), but Shorebird's `libapp.so` places code in patchable regions that only their (private) Dart fork's loader understands, so a vanilla engine jumps into a non-executable section and crashes at startup (`SEGV_ACCERR` inside `libapp`). The viable path for Shorebird **traffic interception** is binary-patching Shorebird's own distributed engine artifacts from the public bucket (locate the boringssl certificate-verification function in their compiled `libflutter.so` — the same source as vanilla, so the compiled pattern is derivable from our symbolled builds — and patch it to succeed unconditionally). Dump mode for Shorebird engines remains blocked on the private `shorebirdtech/dart-sdk` fork.
 
 ### To Do
 
