@@ -243,7 +243,7 @@ def main_shorebird(args):
     adapter = requests.adapters.HTTPAdapter(pool_maxsize=max(args.workers, 10))
     session.mount("https://", adapter)
 
-    out_path = args.out if args.out != os.path.join(SCRIPT_DIR, "enginehash.tmp.csv") else SHOREBIRD["out"]
+    out_path = args.out
     revisions = shorebird_engine_revisions(session)
     if args.limit:
         revisions = revisions[: args.limit]
@@ -305,8 +305,9 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--out",
-        default=os.path.join(os.path.dirname(SCRIPT_DIR), "enginehash.csv"),
-        help="output CSV path (also used as a resume seed)",
+        default=None,
+        help="output CSV path (also used as a resume seed); defaults to the "
+        "mode's canonical repo-root CSV (enginehash[_profile|_sb].csv)",
     )
     parser.add_argument(
         "--seed",
@@ -334,11 +335,21 @@ def main():
     )
     args = parser.parse_args()
 
+    # resolve --out BEFORE mode dispatch: a mode's canonical CSV wins unless
+    # the user explicitly overrode it (string-comparing a default was how the
+    # shorebird run once clobbered the vanilla CSV)
+    if args.out is None:
+        if args.shorebird:
+            args.out = SHOREBIRD["out"]
+        elif args.profile:
+            args.out = os.path.join(
+                os.path.dirname(SCRIPT_DIR), "enginehash_profile.csv"
+            )
+        else:
+            args.out = os.path.join(os.path.dirname(SCRIPT_DIR), "enginehash.csv")
+
     if args.profile:
         globals()["SNAPSHOT_URL"] = PROFILE_SNAPSHOT_URL
-        args.out = os.path.join(
-            os.path.dirname(SCRIPT_DIR), "enginehash_profile.csv"
-        )
     if args.shorebird:
         return main_shorebird(args)
 
