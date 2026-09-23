@@ -980,6 +980,18 @@ def patch_source(libapp_hash: str, ver: int, patch_dump: bool, dart_version: str
     ):
         replace_file_text(_f, ", INFINITY))", ", __builtin_inff()))")
 
+    # old tonic relies on SDK headers transitively declaring malloc - SDK 27
+    # stopped doing that in this TU; add the include it always needed
+    for _f in (
+        "src/flutter/third_party/tonic/filesystem/filesystem/file.cc",
+        "engine/src/flutter/third_party/tonic/filesystem/filesystem/file.cc",
+    ):
+        replace_file_text(
+            _f,
+            '#include <fcntl.h>\n#include <sys/stat.h>',
+            '#include <fcntl.h>\n#include <sys/stat.h>\n#include <stdlib.h>',
+        )
+
     if ver >= 24 and patch_dump:
         replace_file_text(
             "src/third_party/dart/runtime/vm/clustered_snapshot.cc",
