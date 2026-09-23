@@ -305,7 +305,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--out",
-        default=os.path.join(SCRIPT_DIR, "enginehash.tmp.csv"),
+        default=os.path.join(os.path.dirname(SCRIPT_DIR), "enginehash.csv"),
         help="output CSV path (also used as a resume seed)",
     )
     parser.add_argument(
@@ -313,7 +313,7 @@ def main():
         action="append",
         default=None,
         help="extra CSV to resume from (repeatable); defaults to --out and "
-        "enginehash.tmp next to this script",
+        "the legacy scripts/enginehash.tmp.csv if present",
     )
     parser.add_argument("--workers", type=int, default=4, help="parallel downloads")
     parser.add_argument(
@@ -336,7 +336,9 @@ def main():
 
     if args.profile:
         globals()["SNAPSHOT_URL"] = PROFILE_SNAPSHOT_URL
-        args.out = os.path.join(SCRIPT_DIR, "enginehash_profile.tmp.csv")
+        args.out = os.path.join(
+            os.path.dirname(SCRIPT_DIR), "enginehash_profile.csv"
+        )
     if args.shorebird:
         return main_shorebird(args)
 
@@ -351,7 +353,7 @@ def main():
 
     seed_paths = list(args.seed or []) + [
         args.out,
-        os.path.join(SCRIPT_DIR, "enginehash.tmp"),
+        os.path.join(SCRIPT_DIR, "enginehash.tmp.csv"),  # legacy pre-0.9.3 output
     ]
     row_of_version = load_seed_rows(seed_paths)
     engine_snapshot = {

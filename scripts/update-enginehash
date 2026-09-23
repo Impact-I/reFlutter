@@ -18,13 +18,15 @@ export PATH="/opt/homebrew/bin:$PATH"
 
 cd "$ROOT"
 "$PY" scripts/gen_enginehash.py --workers 6
+"$PY" scripts/gen_enginehash.py --profile --workers 6
 "$PY" scripts/gen_enginehash.py --shorebird --workers 6
 
-if git diff --quiet -- scripts/enginehash.tmp.csv enginehash_sb.csv; then
+# the CSVs the tool actually fetches live at the repo root
+if git diff --quiet -- enginehash.csv enginehash_profile.csv enginehash_sb.csv; then
   echo "$(date '+%F %T') nothing to update"
   exit 0
 fi
-git add scripts/enginehash.tmp.csv enginehash_sb.csv
+git add enginehash.csv enginehash_profile.csv enginehash_sb.csv
 git commit -q -m "auto: refresh engine hash lists (local scheduler)"
 git push origin main
 echo "$(date '+%F %T') hash lists updated and pushed"

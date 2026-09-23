@@ -180,7 +180,11 @@ profile builds.
       JSONL dump; frida.js auto-written next to -p output);
 - [x] Socket hardening on the tool side (default socket timeout for all
       outbound fetches; no engine-side socket patch - not needed);
-- [ ] Extend engine support to Debug using Fork and Github Actions;
+- [x] Debug-mode support — resolved without engine builds: debug artifacts
+      embed the engine commit rather than a snapshot hash (no hash mapping
+      exists to key a build on), debug apps are JIT with no AOT snapshot to
+      dump, and `frida-ssl.js` covers debug-mode traffic interception on
+      stock engines directly;
 - [x] Improve detection of `App.framework` and `libapp.so` inside zip archive (fallback scan + x86 path fixed in 0.9.0)
 
 ### Build Engine
