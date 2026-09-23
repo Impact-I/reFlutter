@@ -293,6 +293,24 @@ if $DO_BUILD; then
           sed -i '' 's/arm64e\.x1-/arm64e-/g' "$t"
         done
       fi
+      # SDK 27's UIKit headers import <UIUtilities/UIDefines.h> etc. from
+      # System/Library/SubFrameworks, which non-module builds (the engine
+      # compiles UIKit-using code without clang modules) never search -
+      # expose every SubFramework's Headers on the plain header path.
+      # Idempotent: skips frameworks already exposed.
+      local subfws="$shadow/${name}.sdk/System/Library/SubFrameworks"
+      if [[ -d "$subfws" ]]; then
+        local fw fwname
+        for fw in "$subfws"/*.framework; do
+          [[ -d "$fw/Headers" ]] || continue
+          fwname="$(basename "$fw" .framework)"
+          if [[ ! -e "$shadow/${name}.sdk/usr/include/$fwname" ]]; then
+            mkdir -p "$shadow/${name}.sdk/usr/include/$fwname"
+            /bin/cp -R "$fw/Headers/." "$shadow/${name}.sdk/usr/include/$fwname/"
+            say "Exposed SubFramework $fwname headers in ${name}.sdk shadow"
+          fi
+        done
+      fi
       if [[ -e "$sdk_dir/${name}.sdk" ]] && [[ "$(readlink "$sdk_dir/${name}.sdk" 2>/dev/null)" != "$shadow/${name}.sdk" ]]; then
         ln -sfn "$shadow/${name}.sdk" "$sdk_dir/${name}.sdk"
         say "Repointed ${name}.sdk to patched shadow"
