@@ -430,13 +430,57 @@ _PRINTABLE_RUN = re.compile(rb"[\x20-\x7e\t\n\r\x0b\x0c]{32,}")
 _SNAPSHOT_HASH = re.compile(rb"[a-f\d]{32}")
 
 
+def _known_snapshot_hashes():
+    """Snapshot hashes from any enginehash CSV already on disk (no network).
+
+    Used only as a PREFERENCE when several 32-hex candidates are present -
+    a machine without local CSVs simply skips that tier.
+    """
+    hashes = set()
+    for csv_name in ("enginehash.csv", "enginehash_sb.csv", "enginehash_profile.csv"):
+        try:
+            with open(csv_name, "r", errors="replace") as f:
+                for line in f:
+                    parts = line.split(",")
+                    if len(parts) >= 3:
+                        h = parts[2].strip().lower()
+                        if _SNAPSHOT_HASH.fullmatch(h.encode("ascii", "ignore")):
+                            hashes.add(h)
+        except (OSError, UnicodeEncodeError):
+            continue
+    return hashes
+
+
 def elff(fname: str) -> str:
+    """Return the engine snapshot hash embedded in the binary.
+
+    Binary read + contiguous printable runs: segments separated by binary
+    bytes can never concatenate into a fake hash (the old text-mode reader
+    did exactly that - PR #387's diagnosis). Within a genuinely contiguous
+    run several 32-hex candidates can still appear (padding bytes that
+    happen to be printable, e.g. '15050505050505050505050505050505'), so:
+    prefer a candidate known to our CSVs, then a high-entropy one, then the
+    first - #387's tiering, adapted to the contiguous-run scanner.
+    """
+    candidates = []
+    seen = set()
     with open(fname, "rb") as f:
         for run in _PRINTABLE_RUN.finditer(f.read()):
-            match = _SNAPSHOT_HASH.search(run.group())
-            if match:
-                return match.group().decode("ascii")
-    return ""
+            for m in _SNAPSHOT_HASH.finditer(run.group()):
+                s = m.group().decode("ascii")
+                if s not in seen:
+                    seen.add(s)
+                    candidates.append(s)
+    if not candidates:
+        return ""
+    known = _known_snapshot_hashes()
+    for s in candidates:
+        if s in known:
+            return s
+    for s in candidates:
+        if len(set(s)) >= 8:
+            return s
+    return candidates[0]
 
 
 def not_except(filename: str):
