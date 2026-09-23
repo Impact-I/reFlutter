@@ -193,8 +193,10 @@ if $DO_BUILD; then
   # boringssl beside it, exactly what every downstream path expects).
   PRE_MERGE=false
   if ! git fetch origin "$ENGINE_COMMIT" 2>/dev/null; then
-    say "commit not in flutter/flutter - fetching from archived flutter/engine …"
-    git fetch https://github.com/flutter/engine.git "$ENGINE_COMMIT"
+    say "commit not in flutter/flutter - trying archived flutter/engine …"
+    if ! git fetch https://github.com/flutter/engine.git "$ENGINE_COMMIT" 2>/dev/null; then
+      die "engine commit $ENGINE_COMMIT not found in flutter/flutter OR flutter/engine - check the hash (a transient network failure also lands here)"
+    fi
     PRE_MERGE=true
   fi
   say "pre-merge engine layout: $PRE_MERGE"
@@ -225,13 +227,23 @@ if $DO_BUILD; then
     SOLUTION_NAME="."
   fi
   # cache key includes the layout: switching between pre-merge and monorepo
-  # trees requires a fresh sync (different solution shapes overlap in paths)
-  CACHE_KEY="$ENGINE_COMMIT:$( $PRE_MERGE && echo pre || echo post )"
+  # trees requires a fresh sync (different solution shapes overlap in paths),
+  # but a commit change WITHIN a layout stays incremental
+  LAYOUT="post"; $PRE_MERGE && LAYOUT="pre"
+  CACHE_KEY="$ENGINE_COMMIT:$LAYOUT"
   if [[ -d "$GCLIENT_DIR" ]] && [[ -f "$GCLIENT_DIR/.gclient_hash" ]] && \
      [[ "$(cat "$GCLIENT_DIR/.gclient_hash")" == "$CACHE_KEY" ]]; then
     say "Reusing cached gclient sync for $ENGINE_COMMIT …"
   else
-    if [[ ! -d "$GCLIENT_DIR" ]] || $FRESH_SYNC || [[ -f "$GCLIENT_DIR/.gclient_hash" ]]; then
+    OLD_KEY="$(cat "$GCLIENT_DIR/.gclient_hash" 2>/dev/null || true)"
+    NEED_WIPE=false
+    [[ -d "$GCLIENT_DIR" ]] || NEED_WIPE=true
+    $FRESH_SYNC && NEED_WIPE=true
+    # layout switch (or an unkeyed leftover tree) cannot be moved in place
+    if [[ -n "$OLD_KEY" && "${OLD_KEY##*:}" != "$LAYOUT" ]] || [[ -z "$OLD_KEY" && -d "$GCLIENT_DIR" ]]; then
+      NEED_WIPE=true
+    fi
+    if $NEED_WIPE; then
       say "Running gclient sync (this clones 90+ repos, 30+ GB) …"
       rm -rf "$GCLIENT_DIR"
       mkdir -p "$GCLIENT_ROOT"
