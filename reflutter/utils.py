@@ -894,6 +894,16 @@ def patch_source(libapp_hash: str, ver: int, patch_dump: bool, dart_version: str
         'Var("dart_root") + "/third_party/pkg/tflite_native":\n      Var("dart_git") + "tflite_native.git" + "@" + Var("tflite_native_rev"),',
         "",
     )
+    # pre-merge DEPS (<= 3.27 era): flutter.googlesource.com's tinygltf mirror
+    # lost this commit (404, verified) - the upstream github repo still has it.
+    # Applied to both candidate DEPS paths: "." at the engine repo root, and
+    # src/flutter/DEPS when running from a pre-merge gclient root.
+    for _deps in ("DEPS", "src/flutter/DEPS"):
+        replace_file_text(
+            _deps,
+            "Var('flutter_git') + '/third_party/tinygltf.git' + '@' + '9bb5806df4055ac973b970ba5b3e27ce27d98148',",
+            "'https://github.com/syoyo/tinygltf.git' + '@' + '9bb5806df4055ac973b970ba5b3e27ce27d98148',",
+        )
 
     if ver >= 24 and patch_dump:
         replace_file_text(
