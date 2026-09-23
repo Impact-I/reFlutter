@@ -70,8 +70,9 @@ source_set("libcxx") {
   ]
 
   deps = [
+    # llvm_libc dropped from the 3.32-era original: the dep does not exist
+    # in the 3.24-era tree this overlay targets
     "//flutter/third_party/libcxxabi",
-    "//flutter/third_party/llvm_libc"
   ]
 
   # TODO(goderbauer): remove when all sources build with LTO for android_arm64 and android_x64.
