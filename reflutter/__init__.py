@@ -102,6 +102,12 @@ def _patch_file(file_name: str):
                     libapp_hash = libapp_ios[1]
                 if libapp_hash:
                     break
+        is_shorebird = any(
+            fn.endswith("flutter_assets/shorebird.yaml")
+            for fn in list_of_file_names
+        )
+        if is_shorebird:
+            print("[*] Shorebird build detected (flutter_assets/shorebird.yaml)")
         utils.replace_flutter_lib(
             libapp_hash,
             libapp_arm64,
@@ -112,6 +118,7 @@ def _patch_file(file_name: str):
             zip_stored,
             patch_dump,
             no_interact,
+            is_shorebird,
         )
 
 

@@ -68,15 +68,16 @@ def zip_dir(path: str, ziph: zipfile.ZipFile, zip_stored: bool):
                 )
 
 
-def check_libapp_hash(libapp_hash: str) -> int | None:
+def check_libapp_hash(libapp_hash: str, shorebird: bool = False) -> int | None:
     if libapp_hash == "":
         print(
             "\nIs this really a Flutter app? \nThere was no libapp.so (Android) or App (iOS) found in the package.\n\n Make sure there is arm64-v8a/libapp.so or App.framework/App file in the package. If flutter library name differs you need to rename it properly before patching.\n"
         )
         sys.exit(1)
+    csv_name = "enginehash_sb.csv" if shorebird else "enginehash.csv"
     resp = (
         urlopen(
-            "https://raw.githubusercontent.com/Impact-I/reFlutter/main/enginehash.csv"
+            "https://raw.githubusercontent.com/Impact-I/reFlutter/main/" + csv_name
         )
         .read()
         .decode("utf-8")
@@ -84,11 +85,18 @@ def check_libapp_hash(libapp_hash: str) -> int | None:
     if libapp_hash not in resp:
         shutil.rmtree("libappTmp", ignore_errors=True)
         shutil.rmtree("release", ignore_errors=True)
-        print(
-            "\n Engine SnapshotHash: "
-            + libapp_hash
-            + "\n\n This engine is currently not supported.\n Most likely this flutter application uses the Debug version engine which you need to build manually using Docker at the moment.\n More details: https://github.com/Impact-I/reFlutter\n"
-        )
+        if shorebird:
+            print(
+                "\n Engine SnapshotHash: "
+                + libapp_hash
+                + "\n\n This Shorebird engine is not in enginehash_sb.csv yet.\n Shorebird hashes are collected from Shorebird's public artifact bucket -\n run scripts/gen_enginehash.py --shorebird to refresh the list, then build\n the patched engine via the Shorebird flutter fork (see README).\n"
+            )
+        else:
+            print(
+                "\n Engine SnapshotHash: "
+                + libapp_hash
+                + "\n\n This engine is currently not supported.\n Most likely this flutter application uses the Debug version engine which you need to build manually using Docker at the moment.\n Or it may be a Shorebird-built app (check for flutter_assets/shorebird.yaml).\n More details: https://github.com/Impact-I/reFlutter\n"
+            )
         sys.exit(1)
 
     resp = resp.splitlines()
@@ -197,8 +205,9 @@ def replace_flutter_lib(
     zip_stored: bool,
     patch_dump: bool,
     no_interact: bool = False,
+    shorebird: bool = False,
 ):
-    flutter_version_index = check_libapp_hash(libapp_hash)
+    flutter_version_index = check_libapp_hash(libapp_hash, shorebird)
 
     burp_ip = None
     if (
@@ -219,6 +228,7 @@ def replace_flutter_lib(
         libapp_ios,
         patch_dump,
         burp_ip,
+        shorebird,
     )
     if (
         not os.path.exists("libflutter_arm64.so")
@@ -351,10 +361,12 @@ def get_network_lib(
     libapp_ios: tuple,
     patch_dump: bool,
     burp_ip: str | None,
+    shorebird: bool = False,
 ):
-    verUrl = "v2-"
-    if patch_dump:
-        verUrl = "v3-"
+    verUrl = "v3-" if patch_dump else "v2-"
+    if shorebird:
+        # Shorebird-built engines get their own asset namespace
+        verUrl = verUrl + "sb-"
     if len(libapp_ios[1]) != 0:
         try:
             urlretrieve(

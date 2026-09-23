@@ -28,6 +28,7 @@ import re
 import sys
 import tempfile
 import time
+import xml.etree.ElementTree as ET
 import zipfile
 
 import requests
@@ -46,6 +47,17 @@ SNAPSHOT_URL = (
     "https://storage.googleapis.com/flutter_infra_release/flutter/{engine}/android-arm64-release/linux-x64.zip"
 )
 CSV_HEADER = "version,Engine_commit,Snapshot_Hash"
+
+# Shorebird engine artifacts live in a public GCS bucket that mirrors the
+# vanilla flutter_infra_release layout; the bucket listing is the
+# authoritative enumeration of available engine revisions (the fork's release
+# tags lag the rolled engines).
+SHOREBIRD = {
+    "snapshot_url": (
+        "https://storage.googleapis.com/download.shorebird.dev/flutter_infra_release/flutter/{engine}/android-arm64-release/linux-x64.zip"
+    ),
+    "out": os.path.join(SCRIPT_DIR, "enginehash_sb.csv"),
+}
 
 CONNECT_TIMEOUT = 15  # seconds to establish a connection before failing
 READ_TIMEOUT = 180  # seconds without receiving data before failing
@@ -134,12 +146,14 @@ def engine_commit_of(revision, session):
         return ""
 
 
-def snapshot_hash_of(engine_commit, session):
+def snapshot_hash_of(engine_commit, session, url_template=None):
     """Download the engine's gen_snapshot artifact and extract its snapshot hash."""
+    if url_template is None:
+        url_template = SNAPSHOT_URL
     with tempfile.TemporaryDirectory(prefix="gen_enginehash-") as tmp_dir:
         zip_path = os.path.join(tmp_dir, "engine.zip")
         try:
-            download_file(SNAPSHOT_URL.format(engine=engine_commit), zip_path, session)
+            download_file(url_template.format(engine=engine_commit), zip_path, session)
         except NotFoundError:
             return None
         try:
@@ -183,6 +197,96 @@ def write_rows(out_path, releases, row_of_version):
     return written
 
 
+def shorebird_engine_revisions(session):
+    """Engine revisions available in Shorebird's public artifact bucket.
+
+    The bucket mirrors the vanilla flutter_infra_release layout; the release
+    tags of the shorebirdtech/flutter fork lag the rolled engines, so the
+    bucket listing itself is the authoritative enumeration.
+    """
+    revisions = []
+    marker = ""
+    while True:
+        url = (
+            "https://storage.googleapis.com/download.shorebird.dev"
+            "?prefix=flutter_infra_release/flutter/&delimiter=/&max-keys=1000"
+            + marker
+        )
+        root = ET.fromstring(session.get(url, timeout=(CONNECT_TIMEOUT, READ_TIMEOUT)).text)
+        for child in root.findall(".//{*}Prefix"):
+            name = (child.text or "").strip().rstrip("/")
+            rev = name.rsplit("/", 1)[-1]
+            if ENGINE_COMMIT_RE.fullmatch(rev):
+                revisions.append(rev)
+        page = root.find("{*}NextMarker")
+        if page is None:
+            break
+        marker = "&marker=" + page.text.strip()
+    return sorted(set(revisions))
+
+
+def main_shorebird(args):
+    started = time.time()
+    session = requests.Session()
+    adapter = requests.adapters.HTTPAdapter(pool_maxsize=max(args.workers, 10))
+    session.mount("https://", adapter)
+
+    out_path = args.out if args.out != os.path.join(SCRIPT_DIR, "enginehash.tmp.csv") else SHOREBIRD["out"]
+    revisions = shorebird_engine_revisions(session)
+    if args.limit:
+        revisions = revisions[: args.limit]
+    print("[i] {} shorebird engine revisions in bucket".format(len(revisions)), flush=True)
+
+    row_of_version = load_seed_rows([out_path])
+    known_hashes = {snapshot_hash for _, snapshot_hash in row_of_version.values()}
+
+    # rows are keyed sb-<rev> (the hash column is what lookups match on)
+    engine_of_row = {row[0]: rev for rev, row in ((v[0], v) for v in row_of_version.values())}
+    todo = [rev for rev in revisions if "sb-" + rev not in row_of_version]
+
+    misses = []
+    with concurrent.futures.ThreadPoolExecutor(max_workers=args.workers) as pool:
+        futures = {
+            pool.submit(snapshot_hash_of, rev, session, SHOREBIRD["snapshot_url"]): rev
+            for rev in todo
+        }
+        for done, future in enumerate(concurrent.futures.as_completed(futures), 1):
+            rev = futures[future]
+            try:
+                snapshot_hash = future.result()
+            except requests.RequestException as error:
+                snapshot_hash = None
+                print("[!] download failed for engine {}: {}".format(rev, error), flush=True)
+            if snapshot_hash and snapshot_hash not in known_hashes:
+                known_hashes.add(snapshot_hash)
+                row_of_version["sb-" + rev] = (rev, snapshot_hash)
+            elif not snapshot_hash:
+                misses.append(rev)
+            print(
+                "[fetch] {}/{} engine {}... -> {}".format(
+                    done, len(todo), rev[:12], snapshot_hash
+                ),
+                flush=True,
+            )
+
+    partial_path = out_path + ".part"
+    written = 0
+    with open(partial_path, "w") as out:
+        out.write(CSV_HEADER + "\n")
+        for version in sorted(row_of_version, reverse=True):
+            row = row_of_version[version]
+            out.write("{},{},{}\n".format(version, row[0], row[1]))
+            written += 1
+    os.replace(partial_path, out_path)
+    print(
+        "[done] {} rows written to {} in {:.0f}s, {} unresolved".format(
+            written, out_path, time.time() - started, len(misses)
+        ),
+        flush=True,
+    )
+    return 0
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -201,7 +305,17 @@ def main():
     parser.add_argument(
         "--limit", type=int, default=None, help="only process the N newest releases"
     )
+    parser.add_argument(
+        "--shorebird",
+        action="store_true",
+        help="collect Shorebird engine hashes from the shorebirdtech/flutter "
+        "release tags and Shorebird's public artifact bucket "
+        "(writes enginehash_sb.csv)",
+    )
     args = parser.parse_args()
+
+    if args.shorebird:
+        return main_shorebird(args)
 
     started = time.time()
     session = requests.Session()

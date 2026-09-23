@@ -119,19 +119,21 @@ frida-tools==13.7.1
 frida==16.7.19
 ```
 
-Use dump offsets in the Frida [script](https://github.com/Impact-I/reFlutter/blob/main/frida.js):
+Use dump offsets in the Frida [script](https://github.com/Impact-I/reFlutter/blob/main/frida.js). The script resolves `_kDartIsolateSnapshotInstructions` automatically and works across Frida 14–17 (recent versions are recommended):
 
 ```bash
 frida -U -f <package> -l frida.js
 ```
 
-To find `_kDartIsolateSnapshotInstructions`:
+### Shorebird builds
+
+Apps built with [Shorebird](https://shorebird.dev) use a patched Flutter engine whose snapshot hash differs from the vanilla Flutter release it is based on. reFlutter detects `flutter_assets/shorebird.yaml` in the package automatically and matches the hash against [enginehash_sb.csv](https://github.com/Impact-I/reFlutter/blob/main/enginehash_sb.csv) instead. Refresh that list any time with:
 
 ```bash
-readelf -Ws libapp.so
+python3 scripts/gen_enginehash.py --shorebird
 ```
 
-Look for the `Value` field.
+It enumerates Shorebird's public artifact bucket (`download.shorebird.dev`, which mirrors the `flutter_infra_release` layout) — no authentication needed. Patched Shorebird engines (`*-sb-<hash>` release assets) additionally require building from the `shorebirdtech/flutter` fork, whose Dart SDK dependency is currently private; that build step is pending upstream access.
 
 ### To Do
 
@@ -139,7 +141,7 @@ Look for the `Value` field.
 - [ ] Extract more strings and fields;
 - [x] Add socket patch;
 - [ ] Extend engine support to Debug using Fork and Github Actions;
-- [ ] Improve detection of `App.framework` and `libapp.so` inside zip archive
+- [x] Improve detection of `App.framework` and `libapp.so` inside zip archive (fallback scan + x86 path fixed in 0.9.0)
 
 ### Build Engine
 

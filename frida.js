@@ -1,51 +1,130 @@
 // frida -U -f <package> -l frida.js
-// Offsets come from dump.dart (JSONL format): jq -r '.offset' dump.dart
+//
+// Offsets come from dump.dart (JSONL), one per line:
+//   {"method_name":"...","offset":"0x...","library_url":"...","class_name":"..."}
+// The offset is relative to the Dart instructions image start
+// (_kDartIsolateSnapshotInstructions) inside libapp.so (Android) or
+// App.framework/App (iOS) - NOT to the module base.
+//
+// Works across Frida 14 - 17: uses only APIs present in all versions
+// (Process.findModuleByName, NativePointer.readByteArray) with guarded
+// fallbacks for the legacy Module statics removed in newer releases.
 
-function hookFunc() {
-  var dumpOffset = "0x20801C"; // offset from dump.dart (relative to _kDartIsolateSnapshotInstructions)
+var DUMP_OFFSET = "0x20801C"; // <- replace with an offset from dump.dart
 
-  var argBufferSize = 150;
+var HOOK_LABEL = "hooked";
 
-  // Get base address of libapp.so — works across Frida 15, 16, and 17
-  var address;
-  try {
-    address = Module.findBaseAddress("libapp.so");        // Frida < 16
-  } catch (_) { /* removed in newer Frida */ }
+function candidateModules() {
+  // Android: libapp.so. iOS: the Dart AOT snapshot lives in
+  // App.framework/App (module "App") or FlutterApp.framework (older builds).
+  if (Process.platform === "darwin") {
+    return ["App", "FlutterApp", "libapp.so"];
+  }
+  return ["libapp.so"];
+}
 
-  if (!address) {
+function resolveImageBase() {
+  // Preferred: the exported snapshot-instructions symbol - the engine
+  // itself dlsym()s it, so it is present in the dynamic symbol table on
+  // both Android and iOS and works on every Frida version.
+  for (var i = 0; i < candidateModules().length; i++) {
+    var name = candidateModules()[i];
+    var mod = Process.findModuleByName(name);
+    if (mod === null) {
+      continue;
+    }
+    var sym = null;
     try {
-      address = Module.getBaseAddress("libapp.so");       // Frida >= 16
-    } catch (_) { /* fall through */ }
+      sym = Module.findExportByName(name, "_kDartIsolateSnapshotInstructions");
+    } catch (e) {
+      /* removed in Frida 17 */
+    }
+    if (sym === null || sym.isNull()) {
+      try {
+        sym = Module.getGlobalExportByName("_kDartIsolateSnapshotInstructions");
+      } catch (e) {
+        /* not available in older Frida */
+      }
+    }
+    if (sym !== null && !sym.isNull()) {
+      return { base: sym, module: name, viaSymbol: true };
+    }
+    // Legacy fallback: old dumps used module-relative offsets - keep the
+    // module base for those and say so explicitly.
+    return { base: mod.base, module: name, viaSymbol: false };
   }
+  return null;
+}
 
-  if (!address) {
-    var mod = Process.findModuleByName("libapp.so");      // universal fallback
-    if (mod) address = mod.base;
+function isReadable(address) {
+  if (address === null || address === undefined) return false;
+  try {
+    if (address.isNull()) return false;
+    // raw integers (Dart returns ints, not pointers) make readByteArray throw
+    if (address.compare(0x10000) < 0) return false;
+    address.readByteArray(1);
+    return true;
+  } catch (e) {
+    return false;
   }
+}
 
-  if (!address) {
-    console.log("ERROR: libapp.so not found in process memory");
+function dumpArgs(step, address, bufSize) {
+  if (!isReadable(address)) {
+    console.log(
+      "Argument " + step + ": " + address + " (not a readable pointer, skipping hexdump)"
+    );
     return;
   }
-  console.log("\n\nbaseAddress: " + address.toString());
+  var buf;
+  try {
+    buf = address.readByteArray(bufSize); // NativePointer method: Frida 14+
+  } catch (e) {
+    console.log("Argument " + step + ": unreadable (" + e + ")");
+    return;
+  }
+  console.log(
+    "Argument " +
+      step +
+      " address " +
+      address.toString() +
+      " buffer: " +
+      bufSize +
+      "\n\n Value:\n" +
+      hexdump(buf, { offset: 0, length: bufSize, header: false, ansi: false })
+  );
+  console.log("\n----------------------------------------------------\n");
+}
 
-  var codeOffset = address.add(dumpOffset);
-  console.log("codeOffset: " + codeOffset.toString());
-  console.log("");
-  console.log("Wait..... ");
+function hookFunc() {
+  var resolved = resolveImageBase();
+  if (resolved === null) {
+    return false; // module not loaded yet (spawn race) - caller retries
+  }
+
+  console.log(
+    "module: " +
+      resolved.module +
+      " | image base: " +
+      resolved.base.toString() +
+      " (" +
+      (resolved.viaSymbol
+        ? "_kDartIsolateSnapshotInstructions"
+        : "module base - legacy offsets only") +
+      ")"
+  );
+
+  var codeOffset = resolved.base.add(DUMP_OFFSET);
+  console.log("hooking " + DUMP_OFFSET + " -> " + codeOffset.toString() + "\n");
 
   Interceptor.attach(codeOffset, {
     onEnter: function (args) {
-      console.log("");
       console.log("--------------------------------------------|");
-      console.log("\n    Hook Function: " + dumpOffset);
-      console.log("");
+      console.log(" Hook: " + DUMP_OFFSET + " (" + HOOK_LABEL + ")");
       console.log("--------------------------------------------|");
-      console.log("");
-
-      for (var argStep = 0; argStep < 50; argStep++) {
+      for (var argStep = 0; argStep < 10; argStep++) {
         try {
-          dumpArgs(argStep, args[argStep], argBufferSize);
+          dumpArgs(argStep, args[argStep], 150);
         } catch (e) {
           break;
         }
@@ -56,31 +135,21 @@ function hookFunc() {
       dumpArgs(0, retval, 150);
     },
   });
+  return true;
 }
 
-function dumpArgs(step, address, bufSize) {
-  var buf = Memory.readByteArray(address, bufSize);
-
-  console.log(
-    "Argument " +
-      step +
-      " address " +
-      address.toString() +
-      " " +
-      "buffer: " +
-      bufSize.toString() +
-      "\n\n Value:\n" +
-      hexdump(buf, {
-        offset: 0,
-        length: bufSize,
-        header: false,
-        ansi: false,
-      }),
-  );
-
-  console.log("");
-  console.log("----------------------------------------------------");
-  console.log("");
-}
-
-setTimeout(hookFunc, 1000);
+// With `frida -f` the app is spawned suspended and libapp.so may not be
+// mapped yet at script start - retry until it appears instead of bailing.
+var attempts = 0;
+var timer = setInterval(function () {
+  attempts++;
+  if (hookFunc()) {
+    clearInterval(timer);
+    console.log("[*] hook installed after " + attempts + " attempt(s)");
+  } else if (attempts >= 30) {
+    clearInterval(timer);
+    console.log(
+      "ERROR: Dart snapshot module not found after " + attempts + "s - is this a release Flutter app?"
+    );
+  }
+}, 1000);
