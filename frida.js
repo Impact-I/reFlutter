@@ -24,9 +24,10 @@ function candidateModules() {
 }
 
 function resolveImageBase() {
-  // Preferred: the exported snapshot-instructions symbol - the engine
-  // itself dlsym()s it, so it is present in the dynamic symbol table on
-  // both Android and iOS and works on every Frida version.
+  // Preferred: the exported snapshot-instructions symbol. gen_snapshot ELFs
+  // export it in the dynamic symbol table (the engine dlsym()s it), but the
+  // name changed across Dart versions - try both.
+  var symbolNames = ["_kDartSnapshotText", "_kDartIsolateSnapshotInstructions"];
   for (var i = 0; i < candidateModules().length; i++) {
     var name = candidateModules()[i];
     var mod = Process.findModuleByName(name);
@@ -34,19 +35,43 @@ function resolveImageBase() {
       continue;
     }
     var sym = null;
+    var viaSymbol = false;
+    // enumerateExports() is an instance method that has existed since early
+    // Frida and is the only lookup that reliably finds the snapshot symbols
+    // on Android (linker namespaced, exported as variables - the global
+    // lookups miss them and Module.findExportByName is gone in Frida 17).
     try {
-      sym = Module.findExportByName(name, "_kDartIsolateSnapshotInstructions");
+      mod.enumerateExports().forEach(function (e) {
+        if (sym !== null) return;
+        for (var s = 0; s < symbolNames.length; s++) {
+          if (e.name === symbolNames[s]) {
+            sym = e.address;
+            viaSymbol = true;
+          }
+        }
+      });
     } catch (e) {
-      /* removed in Frida 17 */
+      /* module still loading */
     }
-    if (sym === null || sym.isNull()) {
+    for (var s = 0; s < symbolNames.length && (sym === null || sym.isNull()); s++) {
       try {
-        sym = Module.getGlobalExportByName("_kDartIsolateSnapshotInstructions");
+        sym = Module.findExportByName(name, symbolNames[s]);
       } catch (e) {
-        /* not available in older Frida */
+        /* removed in Frida 17 */
+      }
+      if (sym === null || sym.isNull()) {
+        try {
+          sym = Module.getGlobalExportByName(symbolNames[s]);
+        } catch (e) {
+          /* not available in older Frida */
+        }
+      }
+      if (sym !== null && !sym.isNull()) {
+        viaSymbol = true;
+        break;
       }
     }
-    if (sym !== null && !sym.isNull()) {
+    if (viaSymbol) {
       return { base: sym, module: name, viaSymbol: true };
     }
     // Legacy fallback: old dumps used module-relative offsets - keep the
