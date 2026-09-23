@@ -116,8 +116,15 @@ def fetch_shorebird_engine(engine_commit: str, dest_path: str, arch: str):
     )
     raw = urlopen(url).read()
     with zipfile.ZipFile(io.BytesIO(raw)) as archive:
-        member = next(n for n in archive.namelist() if n.endswith("libflutter.so"))
-        engine = archive.read(member)
+        names = archive.namelist()
+        if "flutter.jar" in names:
+            # android artifacts nest the engine inside the embedding jar
+            with zipfile.ZipFile(io.BytesIO(archive.read("flutter.jar"))) as jar:
+                member = next(n for n in jar.namelist() if n.endswith("libflutter.so"))
+                engine = jar.read(member)
+        else:
+            member = next(n for n in names if n.endswith("libflutter.so"))
+            engine = archive.read(member)
     patched = patch_engine_verify(engine)
     with open(dest_path, "wb") as f:
         f.write(patched)
@@ -454,8 +461,11 @@ def replace_flutter_lib(
             shutil.move("release.RE.zip", "release.RE.ipa")
             print("The resulting ipa file: ./release.RE.ipa")
             if (
-                flutter_version_index is not None
-                and flutter_version_index > OLD_SOCKET_PATCH_LAST_VERSION
+                shorebird
+                or (
+                    flutter_version_index is not None
+                    and flutter_version_index > OLD_SOCKET_PATCH_LAST_VERSION
+                )
             ):
                 print(
                     "Please sign & install the ipa file.\n\nConfigure Potatso (iOS) to use your Burp Suite proxy server.\n"
@@ -468,8 +478,11 @@ def replace_flutter_lib(
             shutil.move("release.RE.zip", "release.RE.apk")
             print("The resulting apk file: ./release.RE.apk")
             if (
-                flutter_version_index is not None
-                and flutter_version_index > OLD_SOCKET_PATCH_LAST_VERSION
+                shorebird
+                or (
+                    flutter_version_index is not None
+                    and flutter_version_index > OLD_SOCKET_PATCH_LAST_VERSION
+                )
             ):
                 print(
                     "Please sign, align & install the apk file.\n\nConfigure TunProxy (Android) to use your Burp Suite proxy server.\n"
@@ -497,17 +510,22 @@ def get_network_lib(
         # their private Dart fork's loader). Instead we take Shorebird's own
         # engine artifact from their public bucket and patch boringssl's
         # certificate-chain verification to succeed unconditionally.
-        try:
-            for tup, lib, arch in (
-                (libapp_arm64, "libflutter_arm64.so", "arm64"),
-                (libapp_arm, "libflutter_arm.so", "arm"),
-                (libapp_x64, "libflutter_x64.so", "x64"),
-            ):
-                if len(tup[1]) != 0:
+        for tup, lib, arch in (
+            (libapp_arm64, "libflutter_arm64.so", "arm64"),
+            (libapp_arm, "libflutter_arm.so", "arm"),
+            (libapp_x64, "libflutter_x64.so", "x64"),
+        ):
+            if len(tup[1]) != 0:
+                try:
                     print("[*] Shorebird: fetching + patching engine (" + arch + ") ...")
                     fetch_shorebird_engine(engine_commit, lib, arch)
-        except Exception as error:
-            print("[!] Shorebird engine patching failed: " + str(error))
+                except Exception as error:
+                    print(
+                        "[!] Shorebird engine patching failed for "
+                        + arch
+                        + ": "
+                        + repr(error)
+                    )
         if len(libapp_ios[1]) != 0:
             print(
                 "[!] Shorebird iOS patching is not implemented yet (Mach-O) - the iOS lib stays original"
