@@ -1,0 +1,38 @@
+name: Update engine hash lists
+
+on:
+  schedule:
+    - cron: "23 4 * * 1" # weekly, Monday 04:23 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install requests
+      - name: Update vanilla and Shorebird hash lists
+        run: |
+          python3 scripts/gen_enginehash.py --workers 8
+          python3 scripts/gen_enginehash.py --shorebird --workers 8
+      - name: Commit updated CSVs
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          # enginehash_sb.csv ships to users directly (hash discovery only -
+          # the patched engines come from Shorebird's own bucket), so new
+          # rows are safe to publish; scripts/enginehash.tmp.csv is the
+          # curated-source data for enginehash.csv
+          git add scripts/enginehash.tmp.csv enginehash_sb.csv
+          if git diff --cached --quiet; then
+            echo "nothing to update"
+          else
+            git commit -m "auto: refresh engine hash lists"
+            git push
+          fi
