@@ -125,70 +125,89 @@ def _patch_file(file_name: str):
 
 def _build_engine(libapp_hash: str):
     global patch_dump
+    CSV_URL = (
+        "https://raw.githubusercontent.com/Impact-I/reFlutter/main/"
+    )
     if not os.path.exists("enginehash.csv"):
         urlretrieve(
-            "https://raw.githubusercontent.com/Impact-I/reFlutter/main/enginehash.csv",
+            CSV_URL + "enginehash.csv",
             "enginehash.csv",
         )
 
-    # vanilla engines live in enginehash.csv, Shorebird engines in
-    # enginehash_sb.csv - try both before giving up
-    for csv_name in ("enginehash.csv", "enginehash_sb.csv", "enginehash_profile.csv"):
-        if csv_name != "enginehash.csv" and not os.path.exists(csv_name):
-            try:
-                urlretrieve(
-                    "https://raw.githubusercontent.com/Impact-I/reFlutter/main/"
-                    + csv_name,
-                    csv_name,
-                )
-            except Exception:
+    def scan_csvs():
+        # vanilla engines live in enginehash.csv, Shorebird engines in
+        # enginehash_sb.csv - try all before giving up
+        for csv_name in (
+            "enginehash.csv",
+            "enginehash_sb.csv",
+            "enginehash_profile.csv",
+        ):
+            if csv_name != "enginehash.csv" and not os.path.exists(csv_name):
+                try:
+                    urlretrieve(CSV_URL + csv_name, csv_name)
+                except Exception:
+                    continue
+            if not os.path.exists(csv_name):
                 continue
-        if not os.path.exists(csv_name):
-            continue
 
-        with open(csv_name) as f_obj:
-            reader = csv.DictReader(f_obj, delimiter=",")
-            rows = list(reader)
-        for idx, line in enumerate(rows):
-            if libapp_hash in line["Snapshot_Hash"]:
-                print(line["Engine_commit"])
-                if csv_name == "enginehash_sb.csv":
-                    flavor_note = " (Shorebird row)"
-                    # ver indexes row position, which is chronological in
-                    # enginehash.csv but ALPHABETICAL in the sb csv - sb
-                    # engines are all modern-era, so use the newest-ver
-                    # patch branches. Older sb engines whose anchors moved
-                    # fail loudly in local-release verify_patches.
-                    ver = max(len(rows) - idx - 1, 55)
-                else:
-                    flavor_note = ""
-                    ver = len(rows) - idx - 1
-                # diagnostics to stderr - local-release parses stdout for the commit
-                dart_version = (line.get("Dart_Version") or "").strip()
-                print(
-                    "matched " + csv_name + flavor_note + ", ver " + str(ver)
-                    + (", dart " + dart_version if dart_version else ""),
-                    file=sys.stderr,
-                )
-                if (
-                    os.path.exists("src/third_party/dart/runtime/vm/dart.cc")
-                    or os.path.exists("tools/generate_package_config/pubspec.yaml")
-                    or os.path.exists("deps")
-                    or os.path.exists("src/flutter/third_party/dart/runtime/vm/dart.cc")
-                    or os.path.exists(
-                        "engine/src/flutter/third_party/dart/runtime/vm/dart.cc"
+            with open(csv_name) as f_obj:
+                reader = csv.DictReader(f_obj, delimiter=",")
+                rows = list(reader)
+            for idx, line in enumerate(rows):
+                if libapp_hash in line["Snapshot_Hash"]:
+                    print(line["Engine_commit"])
+                    if csv_name == "enginehash_sb.csv":
+                        flavor_note = " (Shorebird row)"
+                        # ver indexes row position, which is chronological in
+                        # enginehash.csv but ALPHABETICAL in the sb csv - sb
+                        # engines are all modern-era, so use the newest-ver
+                        # patch branches. Older sb engines whose anchors moved
+                        # fail loudly in local-release verify_patches.
+                        ver = max(len(rows) - idx - 1, 55)
+                    else:
+                        flavor_note = ""
+                        ver = len(rows) - idx - 1
+                    # diagnostics to stderr - local-release parses stdout for the commit
+                    dart_version = (line.get("Dart_Version") or "").strip()
+                    print(
+                        "matched " + csv_name + flavor_note + ", ver " + str(ver)
+                        + (", dart " + dart_version if dart_version else ""),
+                        file=sys.stderr,
                     )
-                ):
-                    utils.patch_source(libapp_hash, ver, patch_dump, dart_version)
-                return
+                    if (
+                        os.path.exists("src/third_party/dart/runtime/vm/dart.cc")
+                        or os.path.exists("tools/generate_package_config/pubspec.yaml")
+                        or os.path.exists("deps")
+                        or os.path.exists("src/flutter/third_party/dart/runtime/vm/dart.cc")
+                        or os.path.exists(
+                            "engine/src/flutter/third_party/dart/runtime/vm/dart.cc"
+                        )
+                    ):
+                        utils.patch_source(libapp_hash, ver, patch_dump, dart_version)
+                    return True
+        return False
 
-    print(
-        "\n SnapshotHash "
-        + libapp_hash
-        + " not found in enginehash.csv or enginehash_sb.csv.\n"
-        " Run scripts/gen_enginehash.py (or --shorebird) to refresh the lists.\n"
-    )
-    sys.exit(1)
+    if not scan_csvs():
+        # a locally cached CSV can be stale - e.g. a fresh sb hash row that
+        # landed on GitHub after this tree downloaded its copy. Refresh all
+        # three once and re-scan before failing.
+        for csv_name in (
+            "enginehash.csv",
+            "enginehash_sb.csv",
+            "enginehash_profile.csv",
+        ):
+            try:
+                urlretrieve(CSV_URL + csv_name, csv_name)
+            except Exception:
+                pass
+        if not scan_csvs():
+            print(
+                "\n SnapshotHash "
+                + libapp_hash
+                + " not found in enginehash.csv or enginehash_sb.csv.\n"
+                " Run scripts/gen_enginehash.py (or --shorebird) to refresh the lists.\n"
+            )
+            sys.exit(1)
 
 
 def main():

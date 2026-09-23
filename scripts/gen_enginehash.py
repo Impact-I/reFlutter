@@ -49,9 +49,6 @@ SNAPSHOT_URL = (
 PROFILE_SNAPSHOT_URL = (
     "https://storage.googleapis.com/flutter_infra_release/flutter/{engine}/android-arm64-profile/linux-x64.zip"
 )
-DEBUG_ARTIFACT_URL = (
-    "https://storage.googleapis.com/flutter_infra_release/flutter/{engine}/android-arm64-debug/artifacts.zip"
-)
 CSV_HEADER = "version,Engine_commit,Snapshot_Hash,Dart_Version"
 
 # Shorebird engine artifacts live in a public GCS bucket that mirrors the

@@ -135,9 +135,14 @@ frida -U -f <package> -l frida-ssl.js
 ```
 
 It locates boringssl's certificate-chain verification inside the loaded
-libflutter.so (exported symbol first, then a byte-signature scan for
-stripped builds) and patches it to accept any chain - route the device
-through your proxy and you are intercepting.
+libflutter.so through its symbol table (the function is internal-linkage,
+so it is read from .symtab, not .dynsym) and patches it to accept any
+chain - route the device through your proxy and you are intercepting.
+This needs an engine that still carries a symbol table (Shorebird
+engines, debug/profile builds, and current stock release engines do; a
+fully stripped engine is not supported here - use reFlutter repack mode).
+arm, arm64 and x64 devices are handled per-ISA; other arches abort
+without writing anything.
 
 ### Shorebird builds
 
@@ -165,14 +170,16 @@ Debug builds are genuinely different (JIT kernel snapshots, no AOT
 libapp.so, and the debug libflutter artifact embeds its engine commit
 rather than a snapshot hash) - but they no longer need an engine build
 for traffic analysis: `frida-ssl.js` (runtime SSL bypass, below) works
-on stock engines of any runtime mode, including debug.
+on any engine that retains a symbol table, which includes debug and
+profile builds.
 
 ### To Do
 
 - [x] Display absolute code offset for functions;
 - [x] Extract more strings and fields (is_static, parameter_count in the
       JSONL dump; frida.js auto-written next to -p output);
-- [x] Add socket patch;
+- [x] Socket hardening on the tool side (default socket timeout for all
+      outbound fetches; no engine-side socket patch - not needed);
 - [ ] Extend engine support to Debug using Fork and Github Actions;
 - [x] Improve detection of `App.framework` and `libapp.so` inside zip archive (fallback scan + x86 path fixed in 0.9.0)
 

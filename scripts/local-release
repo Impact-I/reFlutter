@@ -307,6 +307,13 @@ if $DO_BUILD; then
     # and a later v2-only run would ship v3 instrumentation.
     cd "$GCLIENT_DIR"
     git checkout -- . 2>/dev/null || true
+    # reflutter -b runs HERE (cwd=$GCLIENT_DIR), so the CSVs must exist in
+    # this tree too - Phase 1 only copies them into $ENGINE_DIR. Untracked
+    # files survive the checkout above. Needed when a fresh sb hash row is
+    # only in the repo-root CSV and GitHub's copy still lags it.
+    for csv in enginehash.csv enginehash_sb.csv enginehash_profile.csv; do
+      [[ -f "$REPO_ROOT/$csv" ]] && /bin/cp "$REPO_ROOT/$csv" "$GCLIENT_DIR/$csv"
+    done
     for nested in "$ENG/src/flutter/third_party/dart" "$ENG/src/flutter/third_party/boringssl/src"; do
       if [[ -d "$nested/.git" ]]; then
         git -C "$nested" checkout -- . 2>/dev/null || true

@@ -21,6 +21,8 @@ SHOREBIRD_ARTIFACT_URL = (
 VERIFY_BYPASS_ARM64 = bytes.fromhex("20008052" "c0035fd6")
 # arm32 (thumb): movs r0, #1 ; bx lr
 VERIFY_BYPASS_ARM32 = bytes.fromhex("0120" "7047")
+# x86-64: mov eax, 1 ; ret
+VERIFY_BYPASS_X64 = bytes.fromhex("b8010000" "00c3")
 
 
 def patch_engine_verify(data: bytes) -> bytes:
@@ -49,6 +51,18 @@ def patch_engine_verify(data: bytes) -> bytes:
 
     def u64(off):
         return struct.unpack_from(endian + "Q", data, off)[0]
+
+    # e_machine selects the ISA of the bytes we write below - bitness alone
+    # is not enough (an x86_64 ELF is also 64-bit but needs x86 code)
+    bypass = {
+        183: VERIFY_BYPASS_ARM64,  # EM_AARCH64
+        40: VERIFY_BYPASS_ARM32,  # EM_ARM (thumb)
+        62: VERIFY_BYPASS_X64,  # EM_X86_64
+    }.get(u16(0x12))
+    if bypass is None:
+        raise ValueError(
+            "unsupported engine architecture (e_machine=%d) - no verify-cert bypass for it" % u16(0x12)
+        )
 
     if is64:
         e_phoff, e_shoff = u64(0x20), u64(0x28)
@@ -108,7 +122,6 @@ def patch_engine_verify(data: bytes) -> bytes:
             # Elf32_Sym: st_name@0, st_value@4, st_size@8   (different order!)
             st_value = read_addr(b + 8) if is64 else read_addr(b + 4)
             off = vaddr_to_off(st_value & ~1)  # thumb bit
-            bypass = VERIFY_BYPASS_ARM64 if is64 else VERIFY_BYPASS_ARM32
             out[off : off + len(bypass)] = bypass
             # drop everything past the last PT_LOAD and void the section table
             tail = max(offset + filesz for _, offset, filesz in segments)

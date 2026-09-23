@@ -27,16 +27,15 @@ def load_entries(path):
             try:
                 obj = json.loads(line)
             except json.JSONDecodeError:
-                # tolerate concatenated objects on one line, skip corrupt ones
+                # tolerate leading garbage and concatenated objects on one
+                # line; skip only the genuinely corrupt parts
                 try:
                     decoder = json.JSONDecoder()
-                    idx = 0
-                    while idx < len(line):
+                    idx = line.find("{")
+                    while idx != -1 and idx < len(line):
                         obj, end = decoder.raw_decode(line, idx)
                         entries.append(obj)
-                        idx = end
-                        while idx < len(line) and line[idx] not in "{":
-                            idx += 1
+                        idx = line.find("{", end)
                 except json.JSONDecodeError:
                     import sys
                     print("[!] skipping corrupt line: {}...".format(line[:60]), file=sys.stderr)
@@ -97,7 +96,18 @@ def main():
         f.write("# with libapp.so analyzed; offsets are from the Dart instructions image\n")
         f.write("from ghidra.program.model.symbol import SourceType\n")
         f.write("fm = currentProgram.getFunctionManager()\n")
-        f.write("image = toAddr(0)  # adjust: base of _kDartSnapshotText section\n")
+        f.write("# resolve the instructions-image symbol (offsets are relative to it,\n")
+        f.write("# NOT the ELF base) - same resolution order as the IDA script\n")
+        f.write("image = None\n")
+        f.write("for nm in ('_kDartSnapshotText', '_kDartIsolateSnapshotInstructions'):\n")
+        f.write("    syms = getSymbols(nm, None)\n")
+        f.write("    if syms is not None and len(syms) > 0:\n")
+        f.write("        image = syms[0].getAddress()\n")
+        f.write("        print('instructions image: ' + str(image) + ' (' + nm + ')')\n")
+        f.write("        break\n")
+        f.write("if image is None:\n")
+        f.write("    image = toAddr(0)\n")
+        f.write("    print('WARNING: instructions-image symbol not found; using 0 - set image manually')\n")
         f.write("count = 0\n")
         for offset, name in pairs:
             f.write(
