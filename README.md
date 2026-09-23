@@ -125,6 +125,18 @@ Use dump offsets in the Frida [script](https://github.com/Impact-I/reFlutter/blo
 frida -U -f <package> -l frida.js
 ```
 
+For traffic interception **without repacking at all** - on stock,
+custom, CI, or debug engines - use the runtime SSL bypass:
+
+```bash
+frida -U -f <package> -l frida-ssl.js
+```
+
+It locates boringssl's certificate-chain verification inside the loaded
+libflutter.so (exported symbol first, then a byte-signature scan for
+stripped builds) and patches it to accept any chain - route the device
+through your proxy and you are intercepting.
+
 ### Shorebird builds
 
 Apps built with [Shorebird](https://shorebird.dev) use a patched Flutter engine whose snapshot hash differs from the vanilla Flutter release it is based on. reFlutter identifies these automatically (a hash found only in [enginehash_sb.csv](https://github.com/Impact-I/reFlutter/blob/main/enginehash_sb.csv) identifies a Shorebird app even when `flutter_assets/shorebird.yaml` is absent) and patches them for **traffic interception** with no engine build: Shorebird's own engine artifact is fetched from their public bucket for the matched revision, boringssl's certificate-chain verification is patched to succeed unconditionally (a pure-Python ELF walk — symbol table to file offset to an 8-byte arm64 patch — after which the ~150MB of shipped symbols are dropped, since Android's linker only reads program headers), and the app is repacked with it. Refresh the hash list any time with:
@@ -145,8 +157,10 @@ engine assets already. `scripts/gen_enginehash.py --profile` re-verifies
 this for new engines.
 
 Debug builds are genuinely different (JIT kernel snapshots, no AOT
-libapp.so) and still require a manually built debug engine via the
-Dockerfile.
+libapp.so, and the debug libflutter artifact embeds its engine commit
+rather than a snapshot hash) - but they no longer need an engine build
+for traffic analysis: `frida-ssl.js` (runtime SSL bypass, below) works
+on stock engines of any runtime mode, including debug.
 
 ### To Do
 
