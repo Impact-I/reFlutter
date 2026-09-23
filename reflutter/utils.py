@@ -1064,6 +1064,15 @@ def patch_source(libapp_hash: str, ver: int, patch_dump: bool, dart_version: str
             '#include "impeller/typographer/rectangle_packer.h"',
             '#include "impeller/typographer/rectangle_packer.h"\n\n#include <memory>',
         )
+    for _f in (
+        "src/flutter/flow/paint_region.h",
+        "engine/src/flutter/flow/paint_region.h",
+    ):
+        replace_file_text(
+            _f,
+            "#include <utility>\n#include <vector>",
+            "#include <memory>\n#include <utility>\n#include <vector>",
+        )
 
     if ver >= 24 and patch_dump:
         replace_file_text(
