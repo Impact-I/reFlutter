@@ -152,6 +152,18 @@ def _build_engine(libapp_hash: str):
         for idx, line in enumerate(rows):
             if libapp_hash in line["Snapshot_Hash"]:
                 print(line["Engine_commit"])
+                if csv_name == "enginehash_sb.csv":
+                    flavor_note = " (Shorebird row)"
+                    # ver indexes row position, which is chronological in
+                    # enginehash.csv but ALPHABETICAL in the sb csv - sb
+                    # engines are all modern-era, so use the newest-ver
+                    # patch branches. Older sb engines whose anchors moved
+                    # fail loudly in local-release verify_patches.
+                    ver = max(len(rows) - idx - 1, 55)
+                else:
+                    flavor_note = ""
+                    ver = len(rows) - idx - 1
+                print("matched " + csv_name + flavor_note + ", ver " + str(ver))
                 if (
                     os.path.exists("src/third_party/dart/runtime/vm/dart.cc")
                     or os.path.exists("tools/generate_package_config/pubspec.yaml")
@@ -161,7 +173,7 @@ def _build_engine(libapp_hash: str):
                         "engine/src/flutter/third_party/dart/runtime/vm/dart.cc"
                     )
                 ):
-                    utils.patch_source(libapp_hash, len(rows) - idx - 1, patch_dump)
+                    utils.patch_source(libapp_hash, ver, patch_dump)
                 return
 
     print(

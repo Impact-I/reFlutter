@@ -4,6 +4,9 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 RELEASE_DIR="$REPO_ROOT/release"
 
+# prefer a writable pip bin over stale root-owned framework scripts
+export PATH="/opt/homebrew/bin:$PATH"
+
 # ---- flags ----
 BUILD_V2=true
 BUILD_V3=true
