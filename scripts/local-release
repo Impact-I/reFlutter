@@ -215,6 +215,13 @@ if $DO_BUILD; then
       say "Running incremental gclient sync for $ENGINE_COMMIT …"
       cd "$GCLIENT_DIR"
     fi
+    # the previous build's patches sit in the nested gclient-managed repos
+    # and must be reverted before gclient can move them to the new revision
+    for nested in "$GCLIENT_DIR/engine/src/flutter/third_party/dart" "$GCLIENT_DIR/engine/src/flutter/third_party/boringssl/src"; do
+      if [[ -d "$nested/.git" ]]; then
+        git -C "$nested" checkout -- . 2>/dev/null || true
+      fi
+    done
     retry_gclient
     echo "$ENGINE_COMMIT" > "$GCLIENT_DIR"/.gclient_hash
   fi
