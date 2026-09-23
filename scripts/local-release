@@ -2,7 +2,6 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-SNAPSHOT_HASH=$(cat "$REPO_ROOT/SNAPSHOT_HASH")
 RELEASE_DIR="$REPO_ROOT/release"
 
 # ---- flags ----
@@ -11,32 +10,63 @@ BUILD_V3=true
 DO_BUILD=true
 DO_UPLOAD=true
 VERBOSE=false
+SHOREBIRD=false
+FRESH_SYNC=false
+HASH_OVERRIDE=""
+BASE_COMMIT=""
 
 usage() {
   cat <<'EOF'
 Usage: local-release [flags]
+
+Builds the reFlutter-patched engine (v2 traffic / v3 dump, iOS + Android
+arm64/arm/x64) for a snapshot hash and uploads the release assets.
 
 Flags:
   --v2-only        Build only engine v2 (reflutter without -p)
   --v3-only        Build only engine v3 (reflutter with -p)
   --build-only     Build only; skip gh release upload step
   --upload-only    Upload existing release/ artifacts; skip build
+  --shorebird      Build a Shorebird-flavored engine: the hash row comes from
+                   enginehash_sb.csv and assets are tagged with the sb-
+                   prefix. The build tree stays VANILLA (shorebirdtech's
+                   dart-sdk fork is private) - requires --base so the tree
+                   matches the Flutter version the Shorebird engine targets.
+  --hash <hash>    Snapshot hash to build (default: SNAPSHOT_HASH file)
+  --base <commit>  Vanilla engine commit to build a --shorebird flavor on
+  --fresh          Full gclient re-sync even when the engine changed
+                   (default is an incremental sync, which also makes
+                   historical backfills fast)
+  --verbose        Trace commands
   --help           Show this message
+
+Batch/backfill: scripts/backfill '<hash> <hash> ...' [--shorebird --base <c>]
 EOF
   exit 0
 }
 
-for arg in "$@"; do
-  case "$arg" in
+while [[ $# -gt 0 ]]; do
+  case "$1" in
     --v2-only) BUILD_V3=false ;;
     --v3-only) BUILD_V2=false ;;
     --build-only) DO_UPLOAD=false ;;
     --upload-only) DO_BUILD=false ;;
+    --shorebird) SHOREBIRD=true ;;
+    --fresh) FRESH_SYNC=true ;;
+    --hash) HASH_OVERRIDE="$2"; shift ;;
+    --base) BASE_COMMIT="$2"; shift ;;
     --verbose) VERBOSE=true ;;
     --help) usage ;;
-    *) echo "Unknown flag: $arg"; usage ;;
+    *) echo "Unknown flag: $1"; usage ;;
   esac
+  shift
 done
+
+SNAPSHOT_HASH="${HASH_OVERRIDE:-$(cat "$REPO_ROOT/SNAPSHOT_HASH")}"
+TAG_SUFFIX=""
+if $SHOREBIRD; then
+  TAG_SUFFIX="sb-"
+fi
 
 if $VERBOSE; then set -x; fi
 
@@ -140,7 +170,18 @@ if $DO_BUILD; then
   # === PHASE 1: Prepare the engine source (once) ===
   say "Preparing Flutter engine source …"
   cd "$ENGINE_DIR"
-  ENGINE_COMMIT="$(reflutter -b "$SNAPSHOT_HASH")"
+  if $SHOREBIRD; then
+    # The sb CSV row only supplies the snapshot-hash override baked into
+    # make_version; the source tree itself stays vanilla at the matching
+    # Flutter version (shorebirdtech's dart-sdk fork is private, but their
+    # dart is a rebase onto upstream, so a vanilla-base engine with their
+    # hash accepts their snapshots).
+    ENGINE_COMMIT="$BASE_COMMIT"
+    [[ -n "$ENGINE_COMMIT" ]] || die "--shorebird requires --base <vanilla engine commit> (the Flutter version the Shorebird engine targets)"
+    cp "$REPO_ROOT/scripts/enginehash_sb.csv" . 2>/dev/null || true
+  else
+    ENGINE_COMMIT="$(reflutter -b "$SNAPSHOT_HASH")"
+  fi
   say "Engine commit: $ENGINE_COMMIT"
   git fetch origin "$ENGINE_COMMIT"
   git reset --hard FETCH_HEAD
@@ -159,11 +200,18 @@ if $DO_BUILD; then
      [[ "$(cat "$GCLIENT_DIR/.gclient_hash")" == "$ENGINE_COMMIT" ]]; then
     say "Reusing cached gclient sync for $ENGINE_COMMIT …"
   else
-    say "Running gclient sync (this clones 90+ repos, 30+ GB) …"
-    rm -rf "$GCLIENT_DIR"
-    mkdir -p "$GCLIENT_DIR"
-    cd "$GCLIENT_DIR"
-    echo 'solutions = [{"managed": False,"name": ".","url": "'"$ENGINE_DIR"'","custom_deps": {},"deps_file": "DEPS","safesync_url": "",},]' > .gclient
+    if [[ ! -d "$GCLIENT_DIR" ]] || $FRESH_SYNC; then
+      say "Running gclient sync (this clones 90+ repos, 30+ GB) …"
+      rm -rf "$GCLIENT_DIR"
+      mkdir -p "$GCLIENT_DIR"
+      cd "$GCLIENT_DIR"
+      echo 'solutions = [{"managed": False,"name": ".","url": "'"$ENGINE_DIR"'","custom_deps": {},"deps_file": "DEPS","safesync_url": "",},]' > .gclient
+    else
+      # engine changed - move the existing tree to the new revision instead
+      # of re-cloning; this keeps historical backfills cheap
+      say "Running incremental gclient sync for $ENGINE_COMMIT …"
+      cd "$GCLIENT_DIR"
+    fi
     retry_gclient
     echo "$ENGINE_COMMIT" > "$GCLIENT_DIR"/.gclient_hash
   fi
@@ -281,11 +329,11 @@ if $DO_UPLOAD; then
     local variant="$1"
     local out="$RELEASE_DIR/$variant"
 
-    say "Uploading ios-$variant-$SNAPSHOT_HASH …"
-    release_upload "ios-$variant-$SNAPSHOT_HASH" "iOS $variant – $SNAPSHOT_HASH" "$out/Flutter"
+    say "Uploading ios-$variant-$TAG_SUFFIX$SNAPSHOT_HASH …"
+    release_upload "ios-$variant-$TAG_SUFFIX$SNAPSHOT_HASH" "iOS $variant – $TAG_SUFFIX$SNAPSHOT_HASH" "$out/Flutter"
 
-    say "Uploading android-$variant-$SNAPSHOT_HASH …"
-    release_upload "android-$variant-$SNAPSHOT_HASH" "Android $variant – $SNAPSHOT_HASH" \
+    say "Uploading android-$variant-$TAG_SUFFIX$SNAPSHOT_HASH …"
+    release_upload "android-$variant-$TAG_SUFFIX$SNAPSHOT_HASH" "Android $variant – $TAG_SUFFIX$SNAPSHOT_HASH" \
       "$out"/libflutter_arm64.so \
       "$out"/libflutter_arm.so \
       "$out"/libflutter_x64.so

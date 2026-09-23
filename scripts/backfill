@@ -1,0 +1,17 @@
+#!/bin/bash
+# Backfill / rebuild release assets for past snapshot hashes (e.g. re-cutting
+# older v3 engines with the fixed dump offsets).
+#
+# Usage: scripts/backfill '<hash> <hash> ...' [extra local-release flags]
+#   scripts/backfill '78da37fed6bf1489361a312568249f3f ace654289f5abc240509fc941453ebc5' --v3-only
+#   scripts/backfill '3c9c63bc42bff27a9fd51d020f3771ec' --shorebird --base af7e796e161ae0bb1ff0758c71a7105418bd9ded
+set -euo pipefail
+[[ $# -ge 1 ]] || { echo "Usage: $0 '<hash> <hash> ...' [local-release flags]" >&2; exit 1; }
+
+HASHES="$1"; shift
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+
+for hash in $HASHES; do
+  echo "==> backfill: $hash"
+  bash "$SCRIPT_DIR/local-release" --hash "$hash" "$@"
+done

@@ -4,6 +4,7 @@ import argparse
 import os
 import csv
 import socket
+import sys
 
 try:
     from . import utils
@@ -130,19 +131,25 @@ def _build_engine(libapp_hash: str):
             "enginehash.csv",
         )
 
-    with open("enginehash.csv") as f_obj:
-        utils.replace_file_text(
-            "src/src/flutter/BUILD.gn",
-            '  if (is_android) {\n    public_deps +=\n        [ "//flutter/shell/platform/android:flutter_shell_native_unittests" ]\n  }',
-            "",
-        )
-        read = csv.DictReader(f_obj, delimiter=",")
-        row_count = sum(1 for _ in read)
-        f_obj.seek(0)
-        reader = csv.DictReader(f_obj, delimiter=",")
-        i = -row_count
-        for line in reader:
-            i = i + 1
+    # vanilla engines live in enginehash.csv, Shorebird engines in
+    # enginehash_sb.csv - try both before giving up
+    for csv_name in ("enginehash.csv", "enginehash_sb.csv"):
+        if csv_name == "enginehash_sb.csv" and not os.path.exists(csv_name):
+            try:
+                urlretrieve(
+                    "https://raw.githubusercontent.com/Impact-I/reFlutter/main/"
+                    + csv_name,
+                    csv_name,
+                )
+            except Exception:
+                continue
+        if not os.path.exists(csv_name):
+            continue
+
+        with open(csv_name) as f_obj:
+            reader = csv.DictReader(f_obj, delimiter=",")
+            rows = list(reader)
+        for idx, line in enumerate(rows):
             if libapp_hash in line["Snapshot_Hash"]:
                 print(line["Engine_commit"])
                 if (
@@ -154,7 +161,16 @@ def _build_engine(libapp_hash: str):
                         "engine/src/flutter/third_party/dart/runtime/vm/dart.cc"
                     )
                 ):
-                    utils.patch_source(libapp_hash, abs(i), patch_dump)
+                    utils.patch_source(libapp_hash, len(rows) - idx - 1, patch_dump)
+                return
+
+    print(
+        "\n SnapshotHash "
+        + libapp_hash
+        + " not found in enginehash.csv or enginehash_sb.csv.\n"
+        " Run scripts/gen_enginehash.py (or --shorebird) to refresh the lists.\n"
+    )
+    sys.exit(1)
 
 
 def main():
