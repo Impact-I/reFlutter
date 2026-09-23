@@ -898,16 +898,6 @@ def patch_source(libapp_hash: str, ver: int, patch_dump: bool, dart_version: str
     # lost this commit (404, verified) - the upstream github repo still has it.
     # Applied to both candidate DEPS paths: "." at the engine repo root, and
     # src/flutter/DEPS when running from a pre-merge gclient root.
-    # The era signature is captured up front - the libcxx pin edit below
-    # rewrites the very text the later overlay gates on.
-    _deps_txt = None
-    for _dp in ("DEPS", "src/flutter/DEPS", "engine/src/flutter/DEPS"):
-        try:
-            with open(_dp, "r") as _f:
-                _deps_txt = _f.read()
-            break
-        except OSError:
-            pass
     for _deps in ("DEPS", "src/flutter/DEPS"):
         replace_file_text(
             _deps,
@@ -931,23 +921,27 @@ def patch_source(libapp_hash: str, ver: int, patch_dump: bool, dart_version: str
     # the dep roll alone is half a roll: the 3.24-era build integration still
     # lists src/debug.cpp (removed upstream) and its __config_site lacks the
     # hardening define the rolled headers require. Overlay the 3.32-era
-    # build file + config, gated on the OLD libcxx pin (captured above,
-    # before the pin edit rewrote it) so modern builds never touch this.
-    if _deps_txt and "44079a4cc04cdeffb9cfe8067bfb3c276fb2bab0" in _deps_txt:
-        _patch_dir = os.path.join(os.path.dirname(__file__), "patches")
-        with open(os.path.join(_patch_dir, "libcxx_build.gn"), "r") as _f:
-            _libcxx_build = _f.read()
-        with open(os.path.join(_patch_dir, "libcxx_config_site"), "r") as _f:
-            _libcxx_cfg = _f.read()
-        for _base in ("src/flutter/", "engine/src/flutter/", ""):
-            _lp = _base + "build/secondary/flutter/third_party/libcxx"
-            if os.path.exists(_lp + "/BUILD.gn"):
-                with open(_lp + "/BUILD.gn", "w") as _f:
-                    _f.write(_libcxx_build)
-                with open(_lp + "/config/__config_site", "w") as _f:
-                    _f.write(_libcxx_cfg)
-                print("[*] libcxx build integration rolled (3.24-era -> 3.32-era) at " + _lp)
-                break
+    # build file + config wherever the OLD build file is still present -
+    # gating on the file's own content self-corrects in any tree state
+    # (cached syncs may carry the rolled DEPS but the stale BUILD.gn).
+    _patch_dir = os.path.join(os.path.dirname(__file__), "patches")
+    with open(os.path.join(_patch_dir, "libcxx_build.gn"), "r") as _f:
+        _libcxx_build = _f.read()
+    with open(os.path.join(_patch_dir, "libcxx_config_site"), "r") as _f:
+        _libcxx_cfg = _f.read()
+    for _base in ("src/flutter/", "engine/src/flutter/", ""):
+        _lp = _base + "build/secondary/flutter/third_party/libcxx"
+        try:
+            with open(_lp + "/BUILD.gn", "r") as _f:
+                _old_build = _f.read()
+        except OSError:
+            continue
+        if '"src/debug.cpp"' in _old_build:
+            with open(_lp + "/BUILD.gn", "w") as _f:
+                _f.write(_libcxx_build)
+            with open(_lp + "/config/__config_site", "w") as _f:
+                _f.write(_libcxx_cfg)
+            print("[*] libcxx build integration rolled (3.24-era -> 3.32-era) at " + _lp)
 
     if ver >= 24 and patch_dump:
         replace_file_text(
