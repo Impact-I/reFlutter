@@ -228,6 +228,32 @@ if $DO_BUILD; then
 
   inject_clang_wrapper
 
+  # Xcode 27 SDK TBDs carry the arm64e.x1 arch token the pinned lld cannot
+  # parse ("unknown architecture" -> every libc symbol undefined). Keep a
+  # patched shadow copy and repoint the prebuilts/SDKs symlinks - gclient
+  # sync resets them on every revision change.
+  fix_macos_sdk_tbds() {
+    local shadow="$REPO_ROOT/.xcode_sdk_shadow"
+    local sdk_dir="$GCLIENT_DIR/engine/src/flutter/prebuilts/SDKs"
+    for name in MacOSX27.0 iPhoneOS27.0; do
+      local platform="${name%%[0-9]*}"
+      local src="/Applications/Xcode.app/Contents/Developer/Platforms/${platform}.platform/Developer/SDKs/${name}.sdk"
+      [[ -d "$src" ]] || continue
+      if [[ ! -d "$shadow/${name}.sdk" ]]; then
+        say "Creating patched shadow SDK ${name} …"
+        /bin/cp -RH "$src" "$shadow/${name}.sdk"
+        grep -rl "arm64e\.x1-" "$shadow/${name}.sdk" --include="*.tbd" 2>/dev/null | while read -r t; do
+          sed -i '' 's/arm64e\.x1-/arm64e-/g' "$t"
+        done
+      fi
+      if [[ -e "$sdk_dir/${name}.sdk" ]] && [[ "$(readlink "$sdk_dir/${name}.sdk" 2>/dev/null)" != "$shadow/${name}.sdk" ]]; then
+        ln -sfn "$shadow/${name}.sdk" "$sdk_dir/${name}.sdk"
+        say "Repointed ${name}.sdk to patched shadow"
+      fi
+    done
+  }
+  fix_macos_sdk_tbds
+
   ENG="$GCLIENT_DIR/engine"
 
   # === PHASE 3: Build each variant ===
