@@ -154,6 +154,12 @@ def _build_engine(libapp_hash: str):
                 reader = csv.DictReader(f_obj, delimiter=",")
                 rows = list(reader)
             for idx, line in enumerate(rows):
+                # sb- rows belong to enginehash_sb.csv only; if one ever leaks
+                # into a vanilla list it must not resolve as a vanilla commit
+                if csv_name != "enginehash_sb.csv" and line.get(
+                    "version", ""
+                ).startswith("sb-"):
+                    continue
                 if libapp_hash in line["Snapshot_Hash"]:
                     print(line["Engine_commit"])
                     if csv_name == "enginehash_sb.csv":
