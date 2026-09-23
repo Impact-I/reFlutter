@@ -185,7 +185,19 @@ if $DO_BUILD; then
     ENGINE_COMMIT="$(reflutter -b "$SNAPSHOT_HASH" | head -1)"
   fi
   say "Engine commit: $ENGINE_COMMIT"
-  git fetch origin "$ENGINE_COMMIT"
+  # pre-merge engines (<= 3.27, early 2025) predate the flutter/flutter +
+  # flutter/engine monorepo merge: their commits live only in the archived
+  # flutter/engine repo. Fetch from there and use the pre-merge gclient
+  # layout below (engine repo as solution "src/flutter" under gclient root
+  # $GCLIENT_DIR/engine - which still yields $ENG/src/flutter with dart and
+  # boringssl beside it, exactly what every downstream path expects).
+  PRE_MERGE=false
+  if ! git fetch origin "$ENGINE_COMMIT" 2>/dev/null; then
+    say "commit not in flutter/flutter - fetching from archived flutter/engine …"
+    git fetch https://github.com/flutter/engine.git "$ENGINE_COMMIT"
+    PRE_MERGE=true
+  fi
+  say "pre-merge engine layout: $PRE_MERGE"
   git reset --hard FETCH_HEAD
   git clean -fdx
   # after clean: reflutter -b resolves the hash from these CSVs, and a
@@ -204,22 +216,32 @@ if $DO_BUILD; then
 
   # === PHASE 2: gclient sync (once, shared by both variants) ===
   GCLIENT_DIR="$REPO_ROOT/gclient_synced"
+  ENG="$GCLIENT_DIR/engine"
+  if $PRE_MERGE; then
+    GCLIENT_ROOT="$GCLIENT_DIR/engine"
+    SOLUTION_NAME="src/flutter"
+  else
+    GCLIENT_ROOT="$GCLIENT_DIR"
+    SOLUTION_NAME="."
+  fi
+  # cache key includes the layout: switching between pre-merge and monorepo
+  # trees requires a fresh sync (different solution shapes overlap in paths)
+  CACHE_KEY="$ENGINE_COMMIT:$( $PRE_MERGE && echo pre || echo post )"
   if [[ -d "$GCLIENT_DIR" ]] && [[ -f "$GCLIENT_DIR/.gclient_hash" ]] && \
-     [[ "$(cat "$GCLIENT_DIR/.gclient_hash")" == "$ENGINE_COMMIT" ]]; then
+     [[ "$(cat "$GCLIENT_DIR/.gclient_hash")" == "$CACHE_KEY" ]]; then
     say "Reusing cached gclient sync for $ENGINE_COMMIT …"
   else
-    if [[ ! -d "$GCLIENT_DIR" ]] || $FRESH_SYNC; then
+    if [[ ! -d "$GCLIENT_DIR" ]] || $FRESH_SYNC || [[ -f "$GCLIENT_DIR/.gclient_hash" ]]; then
       say "Running gclient sync (this clones 90+ repos, 30+ GB) …"
       rm -rf "$GCLIENT_DIR"
-      mkdir -p "$GCLIENT_DIR"
-      cd "$GCLIENT_DIR"
-      echo 'solutions = [{"managed": False,"name": ".","url": "'"$ENGINE_DIR"'","custom_deps": {},"deps_file": "DEPS","safesync_url": "",},]' > .gclient
+      mkdir -p "$GCLIENT_ROOT"
     else
-      # engine changed - move the existing tree to the new revision instead
-      # of re-cloning; this keeps historical backfills cheap
+      # engine changed within the same layout - move the existing tree to
+      # the new revision instead of re-cloning; keeps backfills cheap
       say "Running incremental gclient sync for $ENGINE_COMMIT …"
-      cd "$GCLIENT_DIR"
     fi
+    cd "$GCLIENT_ROOT"
+    echo 'solutions = [{"managed": False,"name": "'"$SOLUTION_NAME"'","url": "'"$ENGINE_DIR"'","custom_deps": {},"deps_file": "DEPS","safesync_url": "",},]' > .gclient
     # the previous build's patches sit in the nested gclient-managed repos
     # and must be reverted before gclient can move them to the new revision
     for nested in "$GCLIENT_DIR/engine/src/flutter/third_party/dart" "$GCLIENT_DIR/engine/src/flutter/third_party/boringssl/src"; do
@@ -228,7 +250,7 @@ if $DO_BUILD; then
       fi
     done
     retry_gclient
-    echo "$ENGINE_COMMIT" > "$GCLIENT_DIR"/.gclient_hash
+    echo "$CACHE_KEY" > "$GCLIENT_DIR"/.gclient_hash
   fi
 
   inject_clang_wrapper
@@ -259,7 +281,14 @@ if $DO_BUILD; then
   }
   fix_macos_sdk_tbds
 
-  ENG="$GCLIENT_DIR/engine"
+  # reflutter -b runs from the gclient ROOT: the monorepo checkout for
+  # post-merge engines, $GCLIENT_DIR/engine for pre-merge (there the engine
+  # repo sits at src/flutter and patch paths resolve via replace_file_text)
+  if $PRE_MERGE; then
+    REFLUTTER_CWD="$GCLIENT_DIR/engine"
+  else
+    REFLUTTER_CWD="$GCLIENT_DIR"
+  fi
 
   # === PHASE 3: Build each variant ===
   # Fail loudly if any patch anchor drifted upstream: replace_file_text is a
@@ -306,14 +335,14 @@ if $DO_BUILD; then
     # The nested gclient-managed repos must be reset too - a checkout at the
     # solution root leaves the previous variant's patches in dart/boringssl
     # and a later v2-only run would ship v3 instrumentation.
-    cd "$GCLIENT_DIR"
+    cd "$REFLUTTER_CWD"
     git checkout -- . 2>/dev/null || true
-    # reflutter -b runs HERE (cwd=$GCLIENT_DIR), so the CSVs must exist in
-    # this tree too - Phase 1 only copies them into $ENGINE_DIR. Untracked
-    # files survive the checkout above. Needed when a fresh sb hash row is
-    # only in the repo-root CSV and GitHub's copy still lags it.
+    # reflutter -b runs HERE, so the CSVs must exist in this tree too -
+    # Phase 1 only copies them into $ENGINE_DIR. Untracked files survive the
+    # checkout above. Needed when a fresh sb hash row is only in the
+    # repo-root CSV and GitHub's copy still lags it.
     for csv in enginehash.csv enginehash_sb.csv enginehash_profile.csv; do
-      [[ -f "$REPO_ROOT/$csv" ]] && /bin/cp "$REPO_ROOT/$csv" "$GCLIENT_DIR/$csv"
+      [[ -f "$REPO_ROOT/$csv" ]] && /bin/cp "$REPO_ROOT/$csv" "$REFLUTTER_CWD/$csv"
     done
     for nested in "$ENG/src/flutter/third_party/dart" "$ENG/src/flutter/third_party/boringssl/src"; do
       if [[ -d "$nested/.git" ]]; then
