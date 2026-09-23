@@ -1036,17 +1036,33 @@ def patch_source(libapp_hash: str, ver: int, patch_dump: bool, dart_version: str
             '#include <fcntl.h>\n#include <sys/stat.h>\n#include <stdlib.h>',
         )
 
-    # SDK 27 annotates the os_signpost APIs with the stack_protector_ignore
-    # attribute, unknown to this era's pinned clang (-Werror kills the TU) -
-    # expand the token to nothing before the SDK header parses
+    # SDK 27 annotates the os_log/os_signpost APIs with the
+    # stack_protector_ignore attribute, unknown to this era's pinned clang
+    # (-Werror kills any TU touching them: dart timeline, engine ObjC++).
+    # A global empty predefine neutralizes the token everywhere, in every
+    # language, immune to include ordering (supersedes the earlier
+    # per-file #define in timeline_macos.cc).
+    for _f in (
+        "src/build/config/compiler/BUILD.gn",
+        "engine/src/build/config/compiler/BUILD.gn",
+    ):
+        replace_file_text(
+            _f,
+            'config("compiler") {\n  cflags = []',
+            'config("compiler") {\n  cflags = []\n'
+            "  # reflutter pre-merge compat: SDK 27's stack_protector_ignore\n"
+            "  # attribute is unknown to this era's clang\n"
+            '  cflags += [ "-Dstack_protector_ignore=" ]',
+        )
     for _f in (
         "src/flutter/third_party/dart/runtime/vm/timeline_macos.cc",
         "engine/src/flutter/third_party/dart/runtime/vm/timeline_macos.cc",
     ):
+        # undo the per-file define now that the global predefine covers it
         replace_file_text(
             _f,
-            '#include "vm/log.h"\n#include "vm/timeline.h"',
             '#include "vm/log.h"\n#include "vm/timeline.h"\n\n#define stack_protector_ignore',
+            '#include "vm/log.h"\n#include "vm/timeline.h"',
         )
 
     # the rolled libcxx ships fewer transitive includes than the 3.24-era
