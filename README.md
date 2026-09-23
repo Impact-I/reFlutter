@@ -8,7 +8,7 @@ This framework helps with Flutter apps reverse engineering using the patched ver
 
 Key features:
 
-- `socket.cc` is patched for traffic monitoring and interception;
+- traffic monitoring and interception via certificate bypass;
 - `dart.cc` is modified to print classes, functions and some fields;
 - dump mode emits `dump.dart` with class/library/function names and per-function code offsets (ready to use with `frida.js`);
 - contains minor changes for successful compilation;
@@ -18,7 +18,8 @@ Key features:
 
 - Android: arm64, arm32, x64;
 - iOS: arm64;
-- Release: Stable, Beta — engine coverage is keyed by snapshot hash, see [enginehash.csv](https://github.com/Impact-I/reFlutter/blob/main/enginehash.csv)
+- Release: Stable, Beta — engine coverage is keyed by snapshot hash, see [enginehash.csv](https://github.com/Impact-I/reFlutter/blob/main/enginehash.csv);
+  x64 engine assets exist for Flutter >= 3.41 only
 
 ### Install
 
@@ -125,8 +126,9 @@ Use dump offsets in the Frida [script](https://github.com/Impact-I/reFlutter/blo
 frida -U -f <package> -l frida.js
 ```
 
-For traffic interception **without repacking at all** - on stock,
-custom, CI, or debug engines - use the runtime SSL bypass:
+For traffic interception **without repacking at all** on Android -
+works on stock release engines via .symtab symbol lookup - use the
+runtime SSL bypass:
 
 ```bash
 frida -U -f <package> -l frida-ssl.js
@@ -145,15 +147,18 @@ Apps built with [Shorebird](https://shorebird.dev) use a patched Flutter engine 
 python3 scripts/gen_enginehash.py --shorebird
 ```
 
-Notes: our own engines cannot run Shorebird snapshots (their code lives in patchable regions understood only by their private Dart fork's loader — verified empirically), which is exactly why the binary-patch route is used. Android arm64/arm32/x64 are patched per-ABI. iOS frameworks are Mach-O patched using the dSYM of the same build for exact symbol addresses (shipped frameworks are stripped) — the resulting ipa must be re-signed, as the tool's output already instructs. Dump mode for Shorebird engines remains blocked on the private Dart fork.
+Notes: our own engines cannot run Shorebird snapshots (their code lives in patchable regions understood only by their private Dart fork's loader — verified empirically), which is exactly why the binary-patch route is used.
+Android requires the engine artifact to carry a symbol table — recent
+revisions (Aug 2025+) ship with one; some older revisions are stripped and
+fail loudly with a clear error. Android arm64/arm32/x64 are patched per-ABI. iOS support requires a dSYM from the same build (shipped frameworks are stripped); dSYM availability varies by engine revision — check the bucket. The resulting ipa must be re-signed, as the tool's output already instructs. Dump mode for Shorebird engines remains blocked on the private Dart fork.
 
 ### Profile and Debug builds
 
 Apps built with `flutter build --profile` carry the same snapshot hash as
 their release counterparts (verified across engines: the hash covers the VM
 sources, not the runtime mode, and profile/release AOT snapshots are
-format-compatible) - so profile-mode apps work with the regular release
-engine assets already. `scripts/gen_enginehash.py --profile` re-verifies
+format-compatible) - so profile-mode apps are expected to work with the regular release
+engine assets (hash equality verified, runtime not yet demonstrated). `scripts/gen_enginehash.py --profile` re-verifies
 this for new engines.
 
 Debug builds are genuinely different (JIT kernel snapshots, no AOT

@@ -242,21 +242,40 @@ def fetch_shorebird_engine(engine_commit: str, dest_path: str, arch: str):
     with zipfile.ZipFile(io.BytesIO(raw)) as archive:
         names = archive.namelist()
         if arch == "ios":
-            member = next(n for n in names if n.endswith("Flutter.framework/Flutter"))
-            engine = archive.read(member)
+            # the artifact is an xcframework: ios-arm64 (device) and
+            # ios-arm64_x86_64-simulator slices; prefer the device slice
+            device_members = [
+                n
+                for n in names
+                if n.endswith("Flutter.framework/Flutter")
+                and "simulator" not in n
+            ]
+            if not device_members:
+                device_members = [n for n in names if n.endswith("Flutter.framework/Flutter")]
+            if not device_members:
+                raise ValueError("no Flutter.framework binary in iOS artifact")
+            engine = archive.read(device_members[0])
+
             # shipped iOS frameworks are stripped of local symbols; the dSYM
-            # of the same build carries the exact addresses
+            # of the same build carries the exact addresses. The bucket serves
+            # two naming schemes across eras - try both.
             dsym = None
-            dsym_url = url.replace("artifacts.zip", "Flutter.framework.dSYM.zip")
-            try:
-                dsym_raw = urlopen(dsym_url).read()
-                with zipfile.ZipFile(io.BytesIO(dsym_raw)) as dzip:
-                    dwarf = next(
-                        n for n in dzip.namelist() if n.endswith("Resources/DWARF/Flutter")
-                    )
-                    dsym = dzip.read(dwarf)
-            except Exception as error:
-                print("[!] Shorebird dSYM unavailable (" + repr(error) + ")")
+            for dsym_name in ("Flutter.dSYM.zip", "Flutter.framework.dSYM.zip"):
+                dsym_url = url.replace("artifacts.zip", dsym_name)
+                try:
+                    dsym_raw = urlopen(dsym_url).read()
+                    with zipfile.ZipFile(io.BytesIO(dsym_raw)) as dzip:
+                        dwarf = next(
+                            n
+                            for n in dzip.namelist()
+                            if n.endswith("Resources/DWARF/Flutter")
+                        )
+                        dsym = dzip.read(dwarf)
+                    break
+                except Exception:
+                    continue
+            if dsym is None:
+                print("[!] Shorebird dSYM unavailable for this engine revision")
             patched = patch_engine_verify_macho(engine, dsym)
             with open(dest_path, "wb") as f:
                 f.write(patched)

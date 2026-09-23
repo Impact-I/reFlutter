@@ -60,7 +60,7 @@ while [[ $# -gt 0 ]]; do
     --base) BASE_COMMIT="$2"; shift ;;
     --verbose) VERBOSE=true ;;
     --help) usage ;;
-    *) echo "Unknown flag: $1"; usage ;;
+    *) echo "Unknown flag: $1" >&2; usage >&2; exit 1 ;;
   esac
   shift
 done
@@ -180,8 +180,7 @@ if $DO_BUILD; then
     # dart is a rebase onto upstream, so a vanilla-base engine with their
     # hash accepts their snapshots).
     ENGINE_COMMIT="$BASE_COMMIT"
-    [[ -n "$ENGINE_COMMIT" ]] || die "--shorebird requires --base <vanilla engine commit> (the Flutter version the Shorebird engine targets)"
-    cp "$REPO_ROOT/scripts/enginehash_sb.csv" . 2>/dev/null || true
+    [[ -n "$ENGINE_COMMIT" ]] || die "--shorebird requires --base <vanilla engine commit> (the Flutter version the Shorebird targets)"
   else
     ENGINE_COMMIT="$(reflutter -b "$SNAPSHOT_HASH" | head -1)"
   fi
@@ -189,6 +188,11 @@ if $DO_BUILD; then
   git fetch origin "$ENGINE_COMMIT"
   git reset --hard FETCH_HEAD
   git clean -fdx
+  # after clean: make sure reflutter -b can resolve the hash locally for
+  # shorebird builds where the csv may not be on GitHub yet
+  if $SHOREBIRD && [[ -f "$REPO_ROOT/enginehash_sb.csv" ]]; then
+    cp "$REPO_ROOT/enginehash_sb.csv" .
+  fi
 
   # Apply base patches only (no -p): DEPS fixes, SSL bypass, make_version hash.
   # The -p flag (dump code, offset fixes) is applied per-variant after gclient sync.
