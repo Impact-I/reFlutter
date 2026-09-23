@@ -104,7 +104,9 @@ def patch_engine_verify(data: bytes) -> bytes:
             continue
         name_end = data.index(b"\0", strtab + st_name)
         if target in data[strtab + st_name : name_end]:
-            st_value = read_addr(b + 8)
+            # Elf64_Sym: st_name@0, st_info@4, st_other@5, st_shndx@6, st_value@8
+            # Elf32_Sym: st_name@0, st_value@4, st_size@8   (different order!)
+            st_value = read_addr(b + 8) if is64 else read_addr(b + 4)
             off = vaddr_to_off(st_value & ~1)  # thumb bit
             bypass = VERIFY_BYPASS_ARM64 if is64 else VERIFY_BYPASS_ARM32
             out[off : off + len(bypass)] = bypass
@@ -157,9 +159,13 @@ def _macho_symbol_value(symtab_owner: bytes, target: bytes):
         n_strx = struct.unpack_from("<I", symtab_owner, b)[0]
         if not n_strx:
             continue
+        n_type = symtab_owner[b + 4]
+        n_value = struct.unpack_from("<Q", symtab_owner, b + 8)[0]
+        if n_value == 0 or not (n_type & 0xE):  # skip undefined/external-only
+            continue
         name_end = symtab_owner.index(b"\0", stroff + n_strx)
         if target in symtab_owner[stroff + n_strx : name_end]:
-            return struct.unpack_from("<Q", symtab_owner, b + 8)[0]
+            return n_value
     return None
 
 
@@ -926,7 +932,7 @@ def patch_source(libapp_hash: str, ver: int, patch_dump: bool, dart_version: str
         replace_file_text(
             "src/third_party/dart/runtime/vm/app_snapshot.cc",
             '#include "vm/version.h"',
-            '#include "vm/version.h"\n#include <sys/stat.h>',
+            '#include "vm/version.h"\n#include <sys/stat.h>\n#include <string>',
         )
 
     if ver > 27:
