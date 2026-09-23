@@ -188,11 +188,12 @@ if $DO_BUILD; then
   git fetch origin "$ENGINE_COMMIT"
   git reset --hard FETCH_HEAD
   git clean -fdx
-  # after clean: make sure reflutter -b can resolve the hash locally for
-  # shorebird builds where the csv may not be on GitHub yet
-  if $SHOREBIRD && [[ -f "$REPO_ROOT/enginehash_sb.csv" ]]; then
-    cp "$REPO_ROOT/enginehash_sb.csv" .
-  fi
+  # after clean: reflutter -b resolves the hash from these CSVs, and a
+  # locally-added row may not be on GitHub yet (fresh sb hash, unpushed
+  # vanilla row) - copy all three so resolution is local-first
+  for csv in enginehash.csv enginehash_sb.csv enginehash_profile.csv; do
+    [[ -f "$REPO_ROOT/$csv" ]] && /bin/cp "$REPO_ROOT/$csv" .
+  done
 
   # Apply base patches only (no -p): DEPS fixes, SSL bypass, make_version hash.
   # The -p flag (dump code, offset fixes) is applied per-variant after gclient sync.

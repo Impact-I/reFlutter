@@ -27,16 +27,22 @@ def load_entries(path):
             try:
                 obj = json.loads(line)
             except json.JSONDecodeError:
-                # tolerate leading garbage and concatenated objects on one
-                # line; skip only the genuinely corrupt parts
-                try:
-                    decoder = json.JSONDecoder()
-                    idx = line.find("{")
-                    while idx != -1 and idx < len(line):
+                # tolerate leading garbage, stray braces and concatenated
+                # objects on one line; skip only the genuinely corrupt parts
+                decoder = json.JSONDecoder()
+                idx = line.find("{")
+                parsed = 0
+                while idx != -1:
+                    try:
                         obj, end = decoder.raw_decode(line, idx)
-                        entries.append(obj)
-                        idx = line.find("{", end)
-                except json.JSONDecodeError:
+                    except json.JSONDecodeError:
+                        # corrupt at this brace - resume at the next one
+                        idx = line.find("{", idx + 1)
+                        continue
+                    entries.append(obj)
+                    parsed += 1
+                    idx = line.find("{", end)
+                if parsed == 0:
                     import sys
                     print("[!] skipping corrupt line: {}...".format(line[:60]), file=sys.stderr)
                 continue

@@ -128,11 +128,6 @@ def _build_engine(libapp_hash: str):
     CSV_URL = (
         "https://raw.githubusercontent.com/Impact-I/reFlutter/main/"
     )
-    if not os.path.exists("enginehash.csv"):
-        urlretrieve(
-            CSV_URL + "enginehash.csv",
-            "enginehash.csv",
-        )
 
     def scan_csvs():
         # vanilla engines live in enginehash.csv, Shorebird engines in
@@ -142,13 +137,13 @@ def _build_engine(libapp_hash: str):
             "enginehash_sb.csv",
             "enginehash_profile.csv",
         ):
-            if csv_name != "enginehash.csv" and not os.path.exists(csv_name):
+            if not os.path.exists(csv_name):
                 try:
                     urlretrieve(CSV_URL + csv_name, csv_name)
                 except Exception:
+                    # offline with no local copy: nothing to scan here; the
+                    # refresh pass below reports the real failure cleanly
                     continue
-            if not os.path.exists(csv_name):
-                continue
 
             with open(csv_name) as f_obj:
                 reader = csv.DictReader(f_obj, delimiter=",")
@@ -207,12 +202,26 @@ def _build_engine(libapp_hash: str):
             except Exception:
                 pass
         if not scan_csvs():
-            print(
-                "\n SnapshotHash "
-                + libapp_hash
-                + " not found in enginehash.csv or enginehash_sb.csv.\n"
-                " Run scripts/gen_enginehash.py (or --shorebird) to refresh the lists.\n"
-            )
+            if not any(
+                os.path.exists(c)
+                for c in (
+                    "enginehash.csv",
+                    "enginehash_sb.csv",
+                    "enginehash_profile.csv",
+                )
+            ):
+                print(
+                    "\n Could not fetch the engine hash lists"
+                    " (offline?). Provide enginehash.csv next to the engine"
+                    " source and retry.\n"
+                )
+            else:
+                print(
+                    "\n SnapshotHash "
+                    + libapp_hash
+                    + " not found in enginehash.csv or enginehash_sb.csv.\n"
+                    " Run scripts/gen_enginehash.py (or --shorebird) to refresh the lists.\n"
+                )
             sys.exit(1)
 
 
