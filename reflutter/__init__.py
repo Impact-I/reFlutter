@@ -178,7 +178,10 @@ def _build_engine(libapp_hash: str):
                     if (
                         os.path.exists("src/third_party/dart/runtime/vm/dart.cc")
                         or os.path.exists("tools/generate_package_config/pubspec.yaml")
-                        or os.path.exists("deps")
+                        # bare "DEPS": the engine-repo root (pre-merge phase 1)
+                        # - explicit rather than relying on "deps" matching
+                        # case-insensitively, which only happens on macOS
+                        or os.path.exists("DEPS")
                         or os.path.exists("src/flutter/third_party/dart/runtime/vm/dart.cc")
                         or os.path.exists(
                             "engine/src/flutter/third_party/dart/runtime/vm/dart.cc"
