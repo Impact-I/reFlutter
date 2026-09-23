@@ -929,6 +929,8 @@ def patch_source(libapp_hash: str, ver: int, patch_dump: bool, dart_version: str
         _libcxx_build = _f.read()
     with open(os.path.join(_patch_dir, "libcxx_config_site"), "r") as _f:
         _libcxx_cfg = _f.read()
+    with open(os.path.join(_patch_dir, "libcxx_assertion_handler"), "r") as _f:
+        _libcxx_assert = _f.read()
     for _base in ("src/flutter/", "engine/src/flutter/", ""):
         _lp = _base + "build/secondary/flutter/third_party/libcxx"
         try:
@@ -946,6 +948,10 @@ def patch_source(libapp_hash: str, ver: int, patch_dump: bool, dart_version: str
                     _f.write(_libcxx_build)
                 with open(_lp + "/config/__config_site", "w") as _f:
                     _f.write(_libcxx_cfg)
+                # the rolled libcxx's <__assert> pulls in this vendor-provided
+                # header - flutter ships it in the same config dir
+                with open(_lp + "/config/__assertion_handler", "w") as _f:
+                    _f.write(_libcxx_assert)
                 print("[*] libcxx build integration rolled (3.24-era -> 3.32-era) at " + _lp)
 
     if ver >= 24 and patch_dump:
