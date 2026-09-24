@@ -1048,11 +1048,11 @@ def patch_source(libapp_hash: str, ver: int, patch_dump: bool, dart_version: str
     ):
         replace_file_text(
             _f,
-            'config("compiler") {\n  cflags = []',
+            # anchor spans into the file's own next line so the replacement
+            # no longer matches the anchor (idempotent across re-patches)
+            'config("compiler") {\n  cflags = []\n  cflags_c = []',
             'config("compiler") {\n  cflags = []\n'
-            "  # reflutter pre-merge compat: SDK 27's stack_protector_ignore\n"
-            "  # attribute is unknown to this era's clang\n"
-            '  cflags += [ "-Dstack_protector_ignore=" ]',
+            '  cflags += [ "-Dstack_protector_ignore=" ]\n  cflags_c = []',
         )
     for _f in (
         "src/flutter/third_party/dart/runtime/vm/timeline_macos.cc",
