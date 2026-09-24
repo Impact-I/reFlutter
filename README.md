@@ -4,22 +4,31 @@
 
 **Read more on the blog:** <https://swarm.ptsecurity.com/fork-bomb-for-flutter/>
 
-This framework helps with Flutter apps reverse engineering using the patched version of the Flutter library which is already compiled and ready for app repacking. This library has snapshot deserialization process modified to allow you perform dynamic analysis in a convenient way.
+reFlutter reverse-engineers Flutter apps by swapping the app's engine for a
+prebuilt patched one (repack mode) or by instrumenting the app's own engine
+at runtime (attach mode). What you get:
 
-Key features:
-
-- traffic monitoring and interception via certificate bypass;
-- `dart.cc` is modified to print classes, functions and some fields;
-- dump mode emits `dump.dart` with class/library/function names and per-function code offsets (ready to use with `frida.js`);
-- contains minor changes for successful compilation;
-- if you would like to implement your own patches, manual Flutter code changes are supported using a specially crafted `Dockerfile`.
+- **Traffic interception** — boringssl certificate verification patched to
+  succeed unconditionally, so Burp (or any proxy) sees the traffic; bypasses
+  several Flutter certificate-pinning implementations. No root or
+  certificate installation needed on Android.
+- **Dump mode** — a `dump.dart` JSONL with every function's name, class,
+  library, static-ness, parameter count and **code offset into the Dart
+  instructions image**, ready for Frida hooking or
+  IDA/Ghidra naming (`scripts/dump2disasm.py`).
+- **Runtime routes where repacking can't reach**: a runtime SSL bypass for
+  engines that ship unstripped, and a runtime dumper for [Shorebird](https://shorebird.dev) apps
+  (whose private Dart fork makes patched-engine builds impossible).
+- Manual engine patching via a crafted `Dockerfile` if you want your own changes.
 
 ### Supported engines
 
-- Android: arm64, arm32, x64;
+- Android: arm64, arm32, x64 (x64 assets: Flutter >= 3.41);
 - iOS: arm64;
-- Release: Stable, Beta — engine coverage is keyed by snapshot hash, see [enginehash.csv](https://github.com/Impact-I/reFlutter/blob/main/enginehash.csv);
-  x64 engine assets exist for Flutter >= 3.41 only
+- Release and profile builds, Stable and Beta channels — coverage is keyed
+  by snapshot hash in [enginehash.csv](https://github.com/Impact-I/reFlutter/blob/main/enginehash.csv);
+- Pre-monorepo-merge engines (<= 3.27) are built from the archived
+  flutter/engine repo — the 3.24.x assets ship with the same pipeline.
 
 ### Install
 
@@ -28,146 +37,151 @@ Key features:
 pip3 install reflutter
 ```
 
-### Usage
+### Quick start
 
 ```console
-impact@f:~$ reflutter main.apk
+$ reflutter main.apk
 
 Please enter your Burp Suite IP: <input_ip>
 
 SnapshotHash: 8ee4ef7a67df9845fba331734198a953
 The resulting apk file: ./release.RE.apk
 Please sign the apk file
-
-impact@f:~$ reflutter main.ipa
 ```
 
-Options:
-
-- `-p, --patch-dump` — dump mode: patch the engine to emit `dump.dart` (classes/methods/offsets) on start, and print a `frida.js` hint instead of the proxy instructions. **Shorebird apps cannot use `-p`** (their private Dart fork's snapshots don't run in patched engines) — dump those at runtime with `scripts/frida-dump.js` instead (see [Shorebird builds](#shorebird-builds)).
-- `-n, --no-interact` — never prompt for a Burp IP (implies `127.0.0.1`); useful for old engines in CI.
-- `-b <Snapshot_Hash>, --build-engine` — engine build mode: print the engine commit for a snapshot hash and (when run inside a flutter/flutter checkout) apply the reFlutter source patches. See `scripts/local-release`.
-
-### Traffic interception
-
-You need to specify the IP of your Burp Suite Proxy Server located in the same network where the device with the Flutter application is. Then configure the Proxy in `BurpSuite -> Listener Proxy -> Options tab`:
-
-- Add port: `8083`
-- Bind to address: `All interfaces`
-- Request handling: Support invisible proxying = `True`
-
-<p align="center"><img src="https://user-images.githubusercontent.com/87244850/135753172-20489ef9-0759-432f-b2fa-220607e896b8.png" width="84%"/></p>
-
-No certificate installation or root access is required for Android. reFlutter also allows bypassing some of the Flutter certificate pinning implementations.
-
-> ⚠️ **Note:** Engines up to and including Flutter **3.24.x** (snapshot hash `80a49c7111088100a233b2ae788e1f48`) still carry the hardcoded proxy IP and get patched in place. Starting with **3.27.x** the hardcoded IP is gone — configure the proxy directly on the device instead.
-
-#### On Android
-
-Use ADB to configure the device’s proxy:
-
-```bash
-adb -s <device> shell "settings put global http_proxy <proxy_ip:port>"
-```
-
-Sign, align, and install the APK. Optionally configure **TunProxy** to route traffic through Burp Suite.
-
-#### On iOS
-
-Sign and install the IPA. Configure **Potatso** to use your Burp Suite proxy server.
-
-### Usage on Android
-
-The resulting apk must be aligned and signed. A recommended tool is [uber-apk-signer](https://github.com/patrickfav/uber-apk-signer/releases/tag/v1.2.1):
+Sign and align the APK — [uber-apk-signer](https://github.com/patrickfav/uber-apk-signer/releases/tag/v1.2.1) works well:
 
 ```bash
 java -jar uber-apk-signer.jar --allowResign -a release.RE.apk
 ```
 
-Run the app on a device. Determine `_kDartIsolateSnapshotInstructions` via binary search. reFlutter writes the dump file to the app's root folder and sets 777 permissions. Retrieve it using:
+For an IPA, sign and install the result as usual; the tool prints a reminder.
+
+Options:
+
+- `-p, --patch-dump` — dump mode: the repacked engine emits `dump.dart`
+  (JSONL: classes/methods/offsets) on start, and the tool writes a ready
+  `frida.js` next to the output instead of the proxy instructions.
+  **Shorebird apps cannot use `-p`** (their private Dart fork's snapshots
+  don't run in patched engines) — dump those at runtime with
+  `scripts/frida-dump.js` instead (see [Shorebird builds](#shorebird-builds)).
+- `-n, --no-interact` — never prompt for a Burp IP (implies `127.0.0.1`);
+  useful for old engines in CI.
+- `-b <Snapshot_Hash>, --build-engine` — engine build mode: print the engine
+  commit for a snapshot hash and (when run inside an engine checkout) apply
+  the reFlutter source patches. See [Build Engine](#build-engine).
+
+## Traffic interception
+
+Point the app at a proxy on the same network. Configure the Burp listener:
+
+- Add port: `8083`, bind to `All interfaces`;
+- Request handling: Support invisible proxying = `True`.
+
+<p align="center"><img src="https://user-images.githubusercontent.com/87244850/135753172-20489ef9-0759-432f-b2fa-220607e896b8.png" width="84%"/></p>
+
+**Android** — set the device proxy, then install the repacked APK:
 
 ```bash
-adb -d shell "cat /data/data/<PACKAGE_NAME>/dump.dart" > dump.dart
+adb -s <device> shell "settings put global http_proxy <proxy_ip:port>"
 ```
 
-<details>
-<summary>file contents</summary>
+Optionally route everything through Burp with **TunProxy**.
 
-```dart
-Library:'package:anyapp/navigation/DeepLinkImpl.dart' Class: Navigation extends Object {
-String* DeepUrl = anyapp://evil.com/ ;
-...
+**iOS** — install the signed IPA and configure **Potatso** (or any per-app
+proxy tool) to use your Burp listener.
+
+> ⚠️ **Proxy routing by era:** engines up to and including Flutter **3.24.x**
+> (snapshot hash `80a49c7111088100a233b2ae788e1f48`) carry a hardcoded proxy
+> IP that gets patched in place. From **3.27.x** on, the hardcoded IP is
+> gone — configure the proxy directly on the device as shown above.
+
+## Dump mode
+
+Run with `-p`, start the app, and pull the JSONL dump:
+
+```bash
+reflutter -p main.apk && java -jar uber-apk-signer.jar --allowResign -a release.RE.apk
+adb shell "cat /data/data/<PACKAGE_NAME>/dump.dart" > dump.dart
+```
+
+On iOS the dump lands in the app container; the console log prints the
+exact path.
+
+<details>
+<summary>file contents (one JSON object per function)</summary>
+
+```json
+{"method_name":"_handleRequest","offset":"0x00000000000a8740","library_url":"package:anyapp/api/client.dart","class_name":"ApiClient","is_static":"false","parameter_count":"2"}
 ```
 
 </details>
 
-### Usage on iOS
+Offsets are relative to the Dart instructions image start
+(`_kDartIsolateSnapshotInstructions` / `_kDartSnapshotText`), **not** the ELF
+base. Two ways to use them:
 
-After running `reflutter main.ipa`, execute the app on device. The dump file path is printed to Xcode console logs:
+- **Frida** — the auto-written `frida.js` resolves the instructions symbol
+  automatically (newer Dart exports `_kDartSnapshotText`, older
+  `_kDartIsolateSnapshotInstructions`) and hooks an offset you fill in:
 
-```
-Current working dir: /private/var/mobile/Containers/Data/Application/<UUID>/dump.dart
-```
+  ```bash
+  frida -U -f <package> -l frida.js
+  ```
 
-Retrieve the file from the device.
+  Works across Frida 14–17; prefer recent frida-server (16.x servers
+  predate Android 15+ and cannot inject there — use 17.x).
 
-<p align="center"><img src="https://user-images.githubusercontent.com/87244850/135860648-a13ba3fd-93d2-4eab-bd38-9aa775c3178f.png" width="100%"/></p>
+- **Static analysis** — generate naming scripts for IDA and Ghidra:
 
-### Frida
+  ```bash
+  python3 scripts/dump2disasm.py dump.dart
+  ```
 
-```
-frida-tools==13.7.1
-frida==16.7.19
-```
+## Runtime routes (no repack)
 
-Use dump offsets in the Frida [script](https://github.com/Impact-I/reFlutter/blob/main/frida.js). The script resolves the snapshot-instructions symbol automatically — it is exported as `_kDartSnapshotText` in newer Dart and `_kDartIsolateSnapshotInstructions` in older versions — and works across Frida 14–17. Recent frida-server versions are recommended (16.x servers predate Android 15+ and cannot inject there):
-
-```bash
-frida -U -f <package> -l frida.js
-```
-
-For traffic interception **without repacking at all** on Android -
-works on stock release engines via .symtab symbol lookup - use the
-runtime SSL bypass:
+`frida-ssl.js` disables TLS verification **without repacking at all** by
+patching boringssl inside the loaded libflutter.so:
 
 ```bash
 frida -U -f <package> -l frida-ssl.js
 ```
 
-It locates boringssl's certificate-chain verification inside the loaded
-libflutter.so through its symbol table (the function is internal-linkage,
-so it is read from .symtab, not .dynsym) and patches it to accept any
-chain - route the device through your proxy and you are intercepting.
-This needs an engine that still carries a symbol table: Shorebird
-engines ship unstripped (~150 MB libflutter.so), and debug/profile
-builds keep theirs. Stock release APKs ship a stripped engine (verified:
-no .symtab in the wild, and the bucket's symbols.zip is a separate link
-whose addresses do not transfer) - for those use reFlutter repack mode,
-which swaps in a prebuilt engine with the bypass compiled in.
-arm, arm64 and x64 devices are handled per-ISA; other arches abort
-without writing anything. Requires frida-server 17.x on Android 15/16
-(16.x kills system_server there; verified 17.9.9 works on API 36).
+It resolves the internal-linkage verification function from `.symtab`, so it
+needs an engine that still carries a symbol table: **Shorebird engines**
+(ship unstripped, ~150 MB) and **debug/profile builds** qualify. Stock
+release APKs ship stripped engines — the bucket's `symbols.zip` is a
+separate link whose addresses do not transfer — so for those use reFlutter
+repack mode, which swaps in a prebuilt engine with the bypass compiled in.
+arm, arm64 and x64 are handled per-ISA; other arches abort without writing
+anything. Requires frida-server 17.x on Android 15/16 (16.x kills
+system_server there; 17.9.9 verified on API 36).
 
-### Shorebird builds
+## Shorebird builds
 
-Apps built with [Shorebird](https://shorebird.dev) use a patched Flutter engine whose snapshot hash differs from the vanilla Flutter release it is based on. reFlutter identifies these automatically (a hash found only in [enginehash_sb.csv](https://github.com/Impact-I/reFlutter/blob/main/enginehash_sb.csv) identifies a Shorebird app even when `flutter_assets/shorebird.yaml` is absent) and patches them for **traffic interception** with no engine build: Shorebird's own engine artifact is fetched from their public bucket for the matched revision, boringssl's certificate-chain verification is patched to succeed unconditionally (a pure-Python ELF walk — symbol table to file offset to an 8-byte arm64 patch — after which the ~150MB of shipped symbols are dropped, since Android's linker only reads program headers), and the app is repacked with it. Refresh the hash list any time with:
+Apps built with [Shorebird](https://shorebird.dev) use a patched Flutter
+engine whose snapshot hash differs from the vanilla release it is based on.
+reFlutter identifies these automatically (a hash found only in
+[enginehash_sb.csv](https://github.com/Impact-I/reFlutter/blob/main/enginehash_sb.csv)
+identifies a Shorebird app even when `flutter_assets/shorebird.yaml` is
+absent).
 
-```bash
-python3 scripts/gen_enginehash.py --shorebird
-```
+**Traffic interception works like any other app** — `reflutter app.apk/ipa`
+— but with no engine build behind it: Shorebird's own engine artifact is
+fetched from their public bucket, boringssl's certificate-chain verification
+is patched to succeed unconditionally (a pure-Python ELF/Mach-O walk —
+symbol table to file offset to a per-ISA patch — after which the ~150 MB of
+shipped symbols are dropped, since Android's linker only reads program
+headers), and the app is repacked with it.
 
-Notes: our own engines cannot run Shorebird snapshots (their code lives in patchable regions understood only by their private Dart fork's loader — verified empirically), which is exactly why the binary-patch route is used.
-Android requires the engine artifact to carry a symbol table — recent
-revisions (Aug 2025+) ship with one; some older revisions are stripped and
-fail loudly with a clear error. Android arm64/arm32/x64 are patched per-ABI. iOS support requires a dSYM from the same build (shipped frameworks are stripped); dSYM availability varies by engine revision — check the bucket. The resulting ipa must be re-signed, as the tool's output already instructs.
-
-**Dump mode for Shorebird apps** works at runtime — no engine build at
-all: their private Dart fork breaks reFlutter's patched-engine route,
-but the engine Shorebird *ships* inside the APK is unstripped.
-`scripts/frida-dump.js` hooks the app's own libflutter.so at
-`FunctionDeserializationCluster::PostLoad` — the exact splice point of
-the engine patch — and replays its JSONL dump by reading raw Dart
-object layouts, deriving the instructions-image base at runtime:
+**Dump mode runs at runtime instead** — our patched engines cannot run
+Shorebird snapshots (their code lives in patchable regions understood only
+by their private Dart fork's loader — verified empirically), but the engine
+Shorebird *ships* inside the APK is unstripped. `scripts/frida-dump.js`
+hooks the app's own libflutter.so at `FunctionDeserializationCluster::PostLoad`
+— the exact splice point of the engine patch — and replays its JSONL dump
+by reading raw Dart object layouts, deriving the instructions-image base at
+runtime:
 
 ```bash
 frida -D <device> -f <package> -l scripts/frida-dump.js
@@ -175,61 +189,60 @@ adb pull /data/data/<package>/dump.dart .
 python3 scripts/dump2disasm.py dump.dart
 ```
 
-Requires an arm64 AOT app and the unstripped engine (the stock
-Shorebird artifact is; reFlutter's repacked copies are not — the
-script fails loudly there). Offsets are relative to the Dart
-instructions image start, same convention as engine dumps; dump.dart
-feeds straight into `scripts/dump2disasm.py` (IDA + Ghidra naming).
-Function names carry the raw `Class@12345` form (strictly more
-information than the engine patch's scrubbed names). Validated on a
-live Shorebird app: 6,957 functions, offsets arm64-spot-checked
-against the APK's instructions image, and consumed downstream by
-dump2disasm.
+Requires an arm64 AOT app and the **stock, unrepacked** engine (repacked
+copies are stripped — the script fails loudly there). Offsets use the same
+instructions-image convention as engine dumps; names carry the raw
+`Class@12345` form (strictly more information than the engine patch's
+scrubbed names); `parameter_count` is unreliable on Shorebird snapshots.
+Validated live: 6,957 functions, offsets arm64-spot-checked against the
+APK's instructions image, consumed downstream by dump2disasm.
 
-### Profile and Debug builds
+Notes: Android requires the engine artifact to carry a symbol table —
+recent revisions (Aug 2025+) ship with one; some older revisions are
+stripped and fail loudly. iOS requires a dSYM from the same build; dSYM
+availability varies by engine revision. The resulting IPA must be re-signed,
+as the tool's output already instructs.
 
-Apps built with `flutter build --profile` carry the same snapshot hash as
-their release counterparts (verified across engines: the hash covers the VM
-sources, not the runtime mode, and profile/release AOT snapshots are
-format-compatible) - so profile-mode apps are expected to work with the regular release
-engine assets (hash equality verified, runtime not yet demonstrated). `scripts/gen_enginehash.py --profile` re-verifies
-this for new engines.
+## Profile and Debug builds
+
+Profile apps carry the **same snapshot hash** as their release counterparts
+(verified across engines — the hash covers the VM sources, not the runtime
+mode), so they work with the regular release engine assets;
+`scripts/gen_enginehash.py --profile` re-verifies this as new engines ship.
 
 Debug builds are genuinely different (JIT kernel snapshots, no AOT
-libapp.so, and the debug libflutter artifact embeds its engine commit
-rather than a snapshot hash) - but they no longer need an engine build
-for traffic analysis: `frida-ssl.js` (runtime SSL bypass, below) works
-on any engine that retains a symbol table, which includes debug and
-profile builds.
+libapp.so, debug artifacts embed the engine commit rather than a snapshot
+hash) — there is nothing to repack, and nothing to dump. For traffic
+analysis use `frida-ssl.js`, which runs on any engine that keeps its symbol
+table, debug builds included.
 
-### To Do
+---
 
-- [x] Display absolute code offset for functions;
-- [x] Extract more strings and fields (is_static, parameter_count in the
-      JSONL dump; frida.js auto-written next to -p output);
-- [x] Socket hardening on the tool side (default socket timeout for all
-      outbound fetches; no engine-side socket patch - not needed);
-- [x] Debug-mode support — resolved without engine builds: debug artifacts
-      embed the engine commit rather than a snapshot hash (no hash mapping
-      exists to key a build on), debug apps are JIT with no AOT snapshot to
-      dump, and `frida-ssl.js` covers debug-mode traffic interception on
-      stock engines directly;
-- [x] Improve detection of `App.framework` and `libapp.so` inside zip archive (fallback scan + x86 path fixed in 0.9.0)
+## Maintainers
 
 ### Build Engine
 
-Engines are built with `scripts/local-release` (macOS; builds v2 + v3 for iOS and Android arm64/arm/x64, verifies every patch landed, and uploads the release assets) based on data in [enginehash.csv](https://github.com/Impact-I/reFlutter/blob/main/enginehash.csv). The engine commit for a snapshot hash is resolved via `reflutter -b <Snapshot_Hash>`. Pre-monorepo-merge engines (≤ 3.27) are fetched from the archived flutter/engine repo and built with the matching gclient layout — the era needs a handful of toolchain compatibility patches (dead mirror pins, libcxx roll against newer macOS SDKs), all applied automatically by the build. Snapshot hash is retrieved from:
+Engines are built with `scripts/local-release` (macOS; builds the traffic
+and dump variants for iOS + Android arm64/arm/x64, verifies every patch
+landed, and uploads the release assets), keyed by the snapshot hashes in
+[enginehash.csv](https://github.com/Impact-I/reFlutter/blob/main/enginehash.csv).
+The engine commit for a snapshot hash resolves via `reflutter -b
+<Snapshot_Hash>`. Pre-monorepo-merge engines (<= 3.27) are fetched from the
+archived flutter/engine repo and built with the matching gclient layout —
+the era needs a handful of toolchain compatibility patches (dead mirror
+pins, a libcxx roll against newer macOS SDKs), all applied automatically by
+the build. Backfill past hashes with `scripts/backfill '<hash> ...'`.
 
+### Hash-list refresh
+
+`scripts/update-enginehash` refreshes the three CSVs — run it manually
+whenever you want the lists current; it is incremental and idempotent
+(seconds when nothing changed). On an always-on machine you can install a
+weekly launchd agent instead:
+
+```bash
+scripts/install-enginehash-agent   # Mondays 04:23; removal command printed
 ```
-https://storage.googleapis.com/flutter_infra_release/flutter/<hash>/android-arm64-release/linux-x64.zip
-```
-
-<details>
-<summary>release</summary>
-
-[![gif](https://user-images.githubusercontent.com/87244850/135758767-47b7d51f-8b6c-40b5-85aa-a13c5a94423a.gif)](https://github.com/Impact-I/reFlutter/actions)
-
-</details>
 
 ### Custom Build
 
@@ -246,25 +259,9 @@ Run with:
 docker run -it -v "$(pwd):/t" -e HASH_PATCH=<Snapshot_Hash> -e COMMIT=<Engine_commit> reflutter
 ```
 
-Example:
-
-```bash
-docker run -it -v "$(pwd):/t" -e HASH_PATCH=aa64af18e7d086041ac127cc4bc50c5e -e COMMIT=d44b5a94c976fbb65815374f61ab5392a220b084 reflutter
-```
-
-#### Example: Build Android ARM64 (Linux/Windows)
-
-```bash
-docker run -e WAIT=300 -e x64=0 -e arm=0 -e HASH_PATCH=<Snapshot_Hash> -e COMMIT=<Engine_commit> --rm -iv${PWD}:/t reflutter
-```
-
 Flags:
 
-- `-e x64=0`: disables x64 build
-- `-e arm64=0`: disables arm64 build
-- `-e arm=0`: disables arm32 build
+- `-e x64=0` / `-e arm64=0` / `-e arm=0`: disable that arch's build
 - `-e WAIT=300`: time in seconds to modify source before build
 - `-e HASH_PATCH`: snapshot hash from `enginehash.csv`
 - `-e COMMIT`: engine commit hash
-
----
