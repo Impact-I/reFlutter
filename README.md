@@ -218,7 +218,7 @@ profile builds.
 
 ### Build Engine
 
-Engines are built with `scripts/local-release` (macOS; builds v2 + v3 for iOS and Android arm64/arm/x64, verifies every patch landed, and uploads the release assets) based on data in [enginehash.csv](https://github.com/Impact-I/reFlutter/blob/main/enginehash.csv). The engine commit for a snapshot hash is resolved via `reflutter -b <Snapshot_Hash>`. Snapshot hash is retrieved from:
+Engines are built with `scripts/local-release` (macOS; builds v2 + v3 for iOS and Android arm64/arm/x64, verifies every patch landed, and uploads the release assets) based on data in [enginehash.csv](https://github.com/Impact-I/reFlutter/blob/main/enginehash.csv). The engine commit for a snapshot hash is resolved via `reflutter -b <Snapshot_Hash>`. Pre-monorepo-merge engines (≤ 3.27) are fetched from the archived flutter/engine repo and built with the matching gclient layout — the era needs a handful of toolchain compatibility patches (dead mirror pins, libcxx roll against newer macOS SDKs), all applied automatically by the build. Snapshot hash is retrieved from:
 
 ```
 https://storage.googleapis.com/flutter_infra_release/flutter/<hash>/android-arm64-release/linux-x64.zip

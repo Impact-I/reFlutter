@@ -21,7 +21,7 @@ CLASSIFIERS = [
 
 setuptools.setup(
     name="reflutter",
-    version="0.9.3",
+    version="0.9.4",
     description=SHORT_DESCRIPTION,
     long_description=LONG_DESCRIPTION,
     long_description_content_type="text/markdown",
@@ -29,7 +29,7 @@ setuptools.setup(
     author_email="routeros7.1@gmail.com",
     url="https://github.com/Impact-I/reFlutter",
     packages=["reflutter"],
-    package_data={"reflutter": ["frida.js"]},
+    package_data={"reflutter": ["frida.js", "patches/*"]},
     license="GPLv3+",
     platforms=["any"],
     keywords="distutils setuptools egg pip requirements",
