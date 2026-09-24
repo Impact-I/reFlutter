@@ -1,0 +1,60 @@
+#!/bin/bash
+# Optional: install the weekly enginehash refresh as a launchd agent.
+# The refresh itself (scripts/update-enginehash) is meant to be run
+# manually by default - this installer is for machines that ARE reliably
+# on at the scheduled time and want the lists always current.
+#
+#   scripts/install-enginehash-agent        # install (Mondays 04:23)
+#   launchctl bootout gui/$(id -u)/dev.reflutter.enginehash && \
+#     rm ~/Library/LaunchAgents/dev.reflutter.enginehash.plist   # remove
+set -euo pipefail
+
+LABEL="dev.reflutter.enginehash"
+PLIST="$HOME/Library/LaunchAgents/$LABEL.plist"
+SCRIPT="$(cd "$(dirname "$0")" && pwd)/update-enginehash"
+
+[[ -x "$SCRIPT" ]] || { echo "update-enginehash not found/executable at $SCRIPT" >&2; exit 1; }
+
+# out with the old, if any (idempotent reinstall)
+launchctl bootout "gui/$(id -u)/$LABEL" 2>/dev/null || true
+
+mkdir -p "$(dirname "$PLIST")"
+cat > "$PLIST" <<EOF
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>$LABEL</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>$SCRIPT</string>
+    </array>
+    <key>StartCalendarInterval</key>
+    <array>
+        <dict>
+            <key>Weekday</key>
+            <integer>1</integer>
+            <key>Hour</key>
+            <integer>4</integer>
+            <key>Minute</key>
+            <integer>23</integer>
+        </dict>
+    </array>
+    <key>StandardOutPath</key>
+    <string>/tmp/reflutter-enginehash.log</string>
+    <key>StandardErrorPath</key>
+    <string>/tmp/reflutter-enginehash.log</string>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+    </dict>
+</dict>
+</plist>
+EOF
+
+plutil -lint "$PLIST" >/dev/null
+launchctl bootstrap "gui/$(id -u)" "$PLIST"
+echo "installed: $LABEL (Mondays 04:23, log: /tmp/reflutter-enginehash.log)"
+echo "remove with: launchctl bootout gui/$(id -u)/$LABEL && rm $PLIST"

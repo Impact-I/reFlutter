@@ -1,13 +1,15 @@
 #!/bin/bash
-# Weekly engine hash-list refresh - LOCAL scheduler (the org's GitHub
-# Actions are locked by a billing issue, so this runs from the maintainer's
-# machine; .github/workflows/update-enginehash.yml stays dormant for if/when
-# Actions becomes available again).
+# Engine hash-list refresh - run MANUALLY whenever you want the lists
+# current (the org's GitHub Actions are locked by a billing issue, so this
+# runs from the maintainer's machine; .github/workflows/update-enginehash.yml
+# stays dormant for if/when Actions becomes available again).
 #
-# Wire it up with launchd (weekly, Monday 04:23) or any cron you like:
-#   ~/Library/LaunchAgents/dev.reflutter.enginehash.plist
-#     ProgramArguments: ["/Volumes/Lux/dev/opensource/reFlutter/scripts/update-enginehash"]
-#     StartCalendarInterval: {Hour: 4, Minute: 23} Weekday: 1
+# Run it any time - it is incremental and idempotent (existing rows resume
+# from the CSVs, only new engine revisions are fetched), so a run costs
+# seconds when nothing changed:
+#   scripts/update-enginehash
+# Want it scheduled anyway (only sensible on an always-on machine)?
+#   scripts/install-enginehash-agent
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"

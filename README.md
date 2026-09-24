@@ -44,7 +44,7 @@ impact@f:~$ reflutter main.ipa
 
 Options:
 
-- `-p, --patch-dump` — dump mode: patch the engine to emit `dump.dart` (classes/methods/offsets) on start, and print a `frida.js` hint instead of the proxy instructions.
+- `-p, --patch-dump` — dump mode: patch the engine to emit `dump.dart` (classes/methods/offsets) on start, and print a `frida.js` hint instead of the proxy instructions. **Shorebird apps cannot use `-p`** (their private Dart fork's snapshots don't run in patched engines) — dump those at runtime with `scripts/frida-dump.js` instead (see [Shorebird builds](#shorebird-builds)).
 - `-n, --no-interact` — never prompt for a Burp IP (implies `127.0.0.1`); useful for old engines in CI.
 - `-b <Snapshot_Hash>, --build-engine` — engine build mode: print the engine commit for a snapshot hash and (when run inside a flutter/flutter checkout) apply the reFlutter source patches. See `scripts/local-release`.
 

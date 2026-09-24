@@ -748,6 +748,17 @@ def get_network_lib(
         # their private Dart fork's loader). Instead we take Shorebird's own
         # engine artifact from their public bucket and patch boringssl's
         # certificate-chain verification to succeed unconditionally.
+        if patch_dump:
+            print(
+                "\n[!] Dump mode (-p) is not available for Shorebird apps via engine "
+                "repack - their private Dart fork's snapshots cannot run in a "
+                "patched engine.\n"
+                "    Dump these at runtime instead, on the ORIGINAL (unrepacked) "
+                "app:\n"
+                "      frida -D <device> -f <package> -l scripts/frida-dump.js\n"
+                "    (see the 'Shorebird builds' README section). Continuing with "
+                "the traffic-interception repack.\n"
+            )
         for tup, lib, arch in (
             (libapp_arm64, "libflutter_arm64.so", "arm64"),
             (libapp_arm, "libflutter_arm.so", "arm"),
