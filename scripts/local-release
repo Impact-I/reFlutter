@@ -378,6 +378,10 @@ if $DO_BUILD; then
     # and a later v2-only run would ship v3 instrumentation.
     cd "$REFLUTTER_CWD"
     git checkout -- . 2>/dev/null || true
+    # pre-merge: the gclient root is not a git repo, so the checkout above
+    # no-ops - reset the solution repo itself (post-merge this is a harmless
+    # scoped subset of the same operation)
+    git -C "$ENG/src/flutter" checkout -- . 2>/dev/null || true
     # reflutter -b runs HERE, so the CSVs must exist in this tree too -
     # Phase 1 only copies them into $ENGINE_DIR. Untracked files survive the
     # checkout above. Needed when a fresh sb hash row is only in the

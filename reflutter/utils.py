@@ -1026,14 +1026,15 @@ def patch_source(libapp_hash: str, ver: int, patch_dump: bool, dart_version: str
 
     # old tonic relies on SDK headers transitively declaring malloc - SDK 27
     # stopped doing that in this TU; add the include it always needed
+    # (anchor spans into the file's own next line - idempotent, see below)
     for _f in (
         "src/flutter/third_party/tonic/filesystem/filesystem/file.cc",
         "engine/src/flutter/third_party/tonic/filesystem/filesystem/file.cc",
     ):
         replace_file_text(
             _f,
-            '#include <fcntl.h>\n#include <sys/stat.h>',
-            '#include <fcntl.h>\n#include <sys/stat.h>\n#include <stdlib.h>',
+            '#include <fcntl.h>\n#include <sys/stat.h>\n\n#include <climits>',
+            '#include <fcntl.h>\n#include <sys/stat.h>\n#include <stdlib.h>\n\n#include <climits>',
         )
 
     # SDK 27 annotates the os_log/os_signpost APIs with the
@@ -1075,10 +1076,13 @@ def patch_source(libapp_hash: str, ver: int, patch_dump: bool, dart_version: str
         "src/flutter/impeller/typographer/rectangle_packer.cc",
         "engine/src/flutter/impeller/typographer/rectangle_packer.cc",
     ):
+        # anchors span into the file's own next line so the replacement no
+        # longer matches the anchor (idempotent across re-patches - the
+        # pre-merge layout never resets the solution repo between variants)
         replace_file_text(
             _f,
-            '#include "impeller/typographer/rectangle_packer.h"',
-            '#include "impeller/typographer/rectangle_packer.h"\n\n#include <memory>',
+            '#include "impeller/typographer/rectangle_packer.h"\n\n#include <algorithm>',
+            '#include "impeller/typographer/rectangle_packer.h"\n\n#include <memory>\n#include <algorithm>',
         )
     for _f in (
         "src/flutter/flow/paint_region.h",
@@ -1086,8 +1090,8 @@ def patch_source(libapp_hash: str, ver: int, patch_dump: bool, dart_version: str
     ):
         replace_file_text(
             _f,
-            "#include <utility>\n#include <vector>",
-            "#include <memory>\n#include <utility>\n#include <vector>",
+            "#include <utility>\n#include <vector>\n#include \"flutter/fml/logging.h\"",
+            "#include <utility>\n#include <vector>\n#include <memory>\n#include \"flutter/fml/logging.h\"",
         )
 
     if ver >= 24 and patch_dump:
