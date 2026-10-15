@@ -148,6 +148,20 @@ retry_gclient() {
   done
 }
 
+# patch_source edits files in several gclient-managed repos (dart, boringssl,
+# libcxx, tonic, ...). A hardcoded list drifts from what patch_source actually
+# touches - reset EVERY nested git repo (all but the solution repo itself,
+# which Phase 1/building re-patches from scratch) so gclient can move them.
+reset_nested_repos() {
+  local root="$1"
+  local gitdir d
+  while IFS= read -r -d '' gitdir; do
+    d="${gitdir%/.git}"
+    git -C "$d" checkout -- . 2>/dev/null || true
+    git -C "$d" clean -fd 2>/dev/null || true
+  done < <(find "$root" -mindepth 2 -name ".git" -type d -print0 2>/dev/null)
+}
+
 # ---- ninja build helper ----
 # Usage: ninja_build "iOS release" "src/out/ios_release" "Flutter.framework/Flutter" "$out/Flutter" --ios
 # First 4 args: label, output-dir, output-file, dest.  Remaining args go to gn (e.g. --ios, --android).
@@ -265,13 +279,18 @@ if $DO_BUILD; then
     fi
     cd "$GCLIENT_ROOT"
     echo 'solutions = [{"managed": False,"name": "'"$SOLUTION_NAME"'","url": "'"$ENGINE_DIR"'","custom_deps": {},"deps_file": "DEPS","safesync_url": "",},]' > .gclient
+    # managed:False means gclient NEVER refreshes the solution copy from
+    # $ENGINE_DIR - without this the solution stays at the previous build's
+    # commit and the nested repos sync against a STALE DEPS (wrong
+    # dart/boringssl revisions => wrong-engine builds). Propagate Phase 1's
+    # freshly-patched source into the solution before syncing.
+    if [[ -d "$GCLIENT_DIR/.git" ]]; then
+      git -C "$GCLIENT_DIR" fetch "$ENGINE_DIR" 2>/dev/null || true
+      git -C "$GCLIENT_DIR" reset --hard "$(git -C "$ENGINE_DIR" rev-parse HEAD)" 2>/dev/null || true
+    fi
     # the previous build's patches sit in the nested gclient-managed repos
     # and must be reverted before gclient can move them to the new revision
-    for nested in "$GCLIENT_DIR/engine/src/flutter/third_party/dart" "$GCLIENT_DIR/engine/src/flutter/third_party/boringssl/src"; do
-      if [[ -d "$nested/.git" ]]; then
-        git -C "$nested" checkout -- . 2>/dev/null || true
-      fi
-    done
+    reset_nested_repos "$GCLIENT_DIR"
     retry_gclient
     echo "$CACHE_KEY" > "$GCLIENT_DIR"/.gclient_hash
   fi
@@ -389,11 +408,7 @@ if $DO_BUILD; then
     for csv in enginehash.csv enginehash_sb.csv enginehash_profile.csv; do
       [[ -f "$REPO_ROOT/$csv" ]] && /bin/cp "$REPO_ROOT/$csv" "$REFLUTTER_CWD/$csv"
     done
-    for nested in "$ENG/src/flutter/third_party/dart" "$ENG/src/flutter/third_party/boringssl/src"; do
-      if [[ -d "$nested/.git" ]]; then
-        git -C "$nested" checkout -- . 2>/dev/null || true
-      fi
-    done
+    reset_nested_repos "$GCLIENT_DIR"
     reflutter -b "$SNAPSHOT_HASH" $reflutter_flags
     verify_patches "$reflutter_flags"
 
